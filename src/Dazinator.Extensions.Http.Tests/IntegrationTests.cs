@@ -10,7 +10,7 @@ namespace Dazinator.Extensions.Http.Tests
     public class IntegrationTests
     {
         [Fact]
-        public async Task Can_Get_NamedClient()
+        public void Can_Get_NamedClient()
         {
             // arrange
 
@@ -30,7 +30,7 @@ namespace Dazinator.Extensions.Http.Tests
             settings.Add("foo", initialBaseAddress);
             using var httpClient = sut.CreateClient("foo");
             Assert.NotNull(httpClient);
-            Assert.Equal(initialBaseAddress, httpClient.BaseAddress.ToString());
+            Assert.Equal(initialBaseAddress, httpClient?.BaseAddress?.ToString());
 
         }
 

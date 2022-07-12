@@ -4,7 +4,9 @@ namespace Dazinator.Extensions.Http.Tests.Utils
 
     public static class TestHelper
     {
-        public static TTestSubject CreateTestSubject<TTestSubject>(out IServiceProvider testServices, Action<IServiceCollection> configureTestServices = null)
+        public static TTestSubject CreateTestSubject<TTestSubject>(out IServiceProvider testServices,
+            Action<IServiceCollection>? configureTestServices = null)
+            where TTestSubject : class
         {
             IServiceCollection services = new ServiceCollection();
             configureTestServices?.Invoke(services);

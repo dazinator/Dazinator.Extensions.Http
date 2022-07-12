@@ -8,8 +8,8 @@ namespace Dazinator.Extensions.Http.Tests.Impl
     {
         private readonly IOptionsFactory<HttpClientFactoryOptions> _innerFactory;
         private readonly Func<string, HttpClientFactoryOptions> _createVersionedHttpClientOptions;
-        private readonly HashSet<string> _names = new HashSet<string>();
-        private readonly ConcurrentDictionary<string, HttpClientFactoryOptions> _optionsCache = new ConcurrentDictionary<string, HttpClientFactoryOptions>();
+        private readonly HashSet<string> _names = new();
+        private readonly ConcurrentDictionary<string, HttpClientFactoryOptions> _optionsCache = new();
 
         public VersioningHttpClientOptionsFactory(
             IEnumerable<IConfigureOptions<HttpClientFactoryOptions>> setups,
@@ -22,7 +22,7 @@ namespace Dazinator.Extensions.Http.Tests.Impl
             {
                 if (item is ConfigureNamedOptions<HttpClientFactoryOptions> namedSetup)
                 {
-                    _names.Add(namedSetup.Name);
+                    _ = _names.Add(namedSetup.Name);
                 }
             }
         }
