@@ -6,7 +6,6 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
     using Dazinator.Extensions.Http.Tests.Utils;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Http;
-    using Microsoft.Extensions.Options;
 
     public class HttpClientFactoryIntegrationTests
     {
@@ -57,18 +56,15 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
             {
                 services.AddHttpClient();
                 // Add named options configuration AFTER other configuration
-                services.Configure<HttpClientFactoryOptions>((sp, name, options) =>
-                {
-                    options.HttpClientActions.Add(a =>
+                services.Configure<HttpClientFactoryOptions>((sp, name, options) => options.HttpClientActions.Add(a =>
                     {
                         Interlocked.Increment(ref invocationCount);
                         a.BaseAddress = new Uri($"http://{name}.localhost/");
-                    });
-                });
+                    }));
 
             });
 
-            int max = 10;
+            var max = 10;
             for (var i = 1; i <= max; i++)
             {
                 using var httpClient = sut.CreateClient("foo");
@@ -76,7 +72,7 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
                 Assert.Equal($"http://foo.localhost/", httpClient.BaseAddress.ToString());
                 Assert.Equal(i, invocationCount);
             }
-          
+
         }
 
         /// <summary>
@@ -101,13 +97,13 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
                     {
                         Interlocked.Increment(ref invocationCount);
                         a.PrimaryHandler = new NotImlementedExceptionHttpMessageHandler();
-                       // a.BaseAddress = new Uri($"http://{name}.localhost/");
+                        // a.BaseAddress = new Uri($"http://{name}.localhost/");
                     });
                 });
 
             });
 
-            int max = 10;
+            var max = 10;
             for (var i = 1; i <= max; i++)
             {
                 using var httpClient = sut.CreateClient("foo");
@@ -123,15 +119,11 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
                 Assert.Equal(2, invocationCount);
             }
         }
-
     }
 
     public class NotImlementedExceptionHttpMessageHandler : HttpMessageHandler
     {
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 }

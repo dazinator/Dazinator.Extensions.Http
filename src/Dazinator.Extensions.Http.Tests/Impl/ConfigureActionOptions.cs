@@ -1,4 +1,4 @@
-﻿namespace Dazinator.Extensions.Http.Tests.Impl
+namespace Dazinator.Extensions.Http.Tests.Impl
 {
     public class ConfigureActionOptions<TOptions>
         where TOptions : class
