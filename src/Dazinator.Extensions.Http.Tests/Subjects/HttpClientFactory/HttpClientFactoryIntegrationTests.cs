@@ -6,6 +6,7 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
     using Dazinator.Extensions.Http.Tests.Utils;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Http;
+    using Microsoft.Extensions.Options;
 
     public class HttpClientFactoryIntegrationTests
     {
