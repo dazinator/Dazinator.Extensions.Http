@@ -2,10 +2,11 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
 {
     using System.Net.Http;
     using System.Threading;
-    using Dazinator.Extensions.Http.Tests.Impl;
+    using Dazinator.Extensions.Http.Tests.Implementation;
     using Dazinator.Extensions.Http.Tests.Utils;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Http;
+    using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
     public class HttpClientFactoryIntegrationTests
@@ -120,6 +121,113 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
                 Assert.Equal(2, invocationCount);
             }
         }
+
+
+        /// <summary>
+        /// Verifies that when a named http client is requested, the HttpMessageHandlerBuilderActions we have configured for it are invoked only once for the HandlerLiftime duration. After the handler lifetime expires, the next time we request the same named http client, new handlers are built and so the HttpMessageHandlerBuilderActions should be invoked again to build the new handlers.
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task CreateClient_WithName_CanBeConfiguredViaHttpClientOptions()
+        {
+            var invocationCount = 0;
+
+            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
+            {
+                services.AddHttpClient();
+                // Add named options configuration AFTER other configuration
+
+                var statusOkHandlerName = "statusOkHandler";
+                var statusNotFoundHandlerName = "statusNotFoundhandler";
+                var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+
+                        // var f = new DelegatingHandler();
+                        r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                            {
+                                var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+                                return Task.FromResult(result);
+                            }))
+                    .RegisterHandler<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
+                         // var f = new DelegatingHandler();
+                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                             {
+                                 var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
+                                 return Task.FromResult(result);
+                             })));
+                services.Configure<HttpClientOptions>((sp, name, options) =>
+                {
+                    // load settings from some store using unique http client name (which can version)
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add(statusOkHandlerName);
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add(statusNotFoundHandlerName);
+                    }
+                });
+                services.Configure<HttpClientFactoryOptions>((sp, httpClientName, options) =>
+                {
+                    var logger = sp.GetRequiredService<ILogger<HttpMessageHandlerBuilder>>();
+                    // options.HandlerLifetime = handlerLifetime;
+                    var httpClientOptionsFactory = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>();
+                    var httpClientOptions = httpClientOptionsFactory.Get(httpClientName);
+
+                    //  options.ConfigureFromOptions(sp, name);
+                    options.HttpClientActions.Add((httpClient) => httpClientOptions.Apply(httpClient));
+
+                    if (httpClientOptions.EnableBypassInvalidCertificate)
+                    {
+                        logger.LogWarning("Http Client {HttpClientName} configured to accept any server certificate.", httpClientName);
+
+                        options.HttpMessageHandlerBuilderActions.Add(a =>
+                        {
+                            if ((a.PrimaryHandler ?? new HttpClientHandler()) is not HttpClientHandler primaryHandler)
+                            {
+                                logger.LogWarning("Configured Primary Handler for Http Client {HttpClientName} is not a HttpClientHandler and therefore DangerousAcceptAnyServerCertificateValidator cannot be set.", httpClientName);
+                            }
+                            else
+                            {
+                                primaryHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                                a.PrimaryHandler = primaryHandler;
+                            }
+
+                            if (httpClientOptions.Handlers?.Any() ?? false)
+                            {
+                                var registry = sp.GetRequiredService<HttpClientHandlerRegistry>();
+                                foreach (var handlerName in httpClientOptions.Handlers)
+                                {
+                                    var handler = registry.GetHandlerInstance(handlerName, sp, httpClientName);
+                                    a.AdditionalHandlers.Add(handler);
+                                }
+                            }
+                            else
+                            {
+                                logger.LogWarning("ConfigureHttpClientFromOptions called on HttpClient: {HttpClientName} but no handlers were configured.", httpClientName);
+                            }
+                        });
+                    }
+                });
+            });
+
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
+
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
+
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+        }
+
     }
 
     public class NotImlementedExceptionHttpMessageHandler : HttpMessageHandler
