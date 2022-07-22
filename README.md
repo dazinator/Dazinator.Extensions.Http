@@ -17,7 +17,7 @@ There are different usage patterns, starting simple then varying in sophisticati
 
 ### Simple
 
-```
+```cs
    services.AddHttpClient();
   
    services.ConfigureHttpClientFactory((sp, httpClientName, options) =>
@@ -29,20 +29,19 @@ There are different usage patterns, starting simple then varying in sophisticati
        });
    });
 
+
+   var sp = services.BuildServiceProvider();
+   var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+
+   // Now get your http client, and version the name at runtime when your configuration is changed:
+   using var httpClient = sut.CreateClient("foo-v1");
+   Assert.Equal($"http://foo-v1.localhost/", httpClient.BaseAddress.ToString());
+
+   // Configuration of the http client was changed somewhere.. use a new name.
+   using var httpClient2 = sut.CreateClient("foo-v2");
+   Assert.Equal($"http://foo-v2.localhost/", httpClient.BaseAddress.ToString());
+
 ```
-
-Now get your http client, and version the name at runtime when your configuration is changed:
-
-```cs
-  using var httpClient = sut.CreateClient("foo-v1");
-  Assert.Equal($"http://foo-v1.localhost/", httpClient.BaseAddress.ToString());
-
-  // Configuration of the http client was changed somewhere.. use a new name.
-    using var httpClient2 = sut.CreateClient("foo-v2");
-  Assert.Equal($"http://foo-v2.localhost/", httpClient.BaseAddress.ToString());
-```
-
-
 
 ### More advanced
 
@@ -178,21 +177,21 @@ Now you can register this handler with the handler registry, and then configure 
    });
  ;
 
- r fooClient = sut.CreateClient("foo-v1");
- r barClient = sut.CreateClient("bar-v1");
+ using var fooClient = sut.CreateClient("foo-v1");
+ using var barClient = sut.CreateClient("bar-v1");
 
- r fooResponse = await fooClient.GetAsync("/foo");
- r barResponse = await barClient.GetAsync("/bar");
+ var fooResponse = await fooClient.GetAsync("/foo");
+ var barResponse = await barClient.GetAsync("/bar");
 
- sert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
- sert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+ Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+ Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
 
 ```
 
 In the scenario above:-
 
-1. The handler has it's own `Options` - this is not mandatory, just showing you how it can be done.
-2. The handler get's its options based on the `http client name' being requested. These care then configured on demand. Again this is not mandatory, but just a useful pattern should you wish to allow handlers to be configured per http client.
+1. The handler I have implemented, has it's own `Options` to control it's behaviour. Its not mandatory that you do this, however i've found it's commonly needed, so showing how it can be done.
+2. The handler not only has one set of options, but also has access to it's `http client name' it's being requested for. Therefore it can obtain it's options for the specific http client name - which are also built on demand as required. This allows the same handler to be configured per http client. Again this is not mandatory, but just a useful capability worth demonstrating.
 
 
 
