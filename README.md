@@ -120,7 +120,11 @@ It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>`
 
 ```
 
-Now you can register this handler with the handler registry, and then configure it on a http client like so:
+Now you can do the following as shown in the example below:
+
+- Register a delegate to configure the handlers options dynamically based on the httpclient name that's requested.
+- Register the handler with the "handler registry" with a particular name. This allows you to add this handler "name" to a http clients "Handlers" list when
+configuring http clients. This will cause the handler to be added to the http clients HttpClientFactoryOptions later on
 
 ```cs
    services.AddHttpClient();
@@ -191,8 +195,7 @@ Now you can register this handler with the handler registry, and then configure 
 
 In the scenario above:-
 
-1. The handler I have implemented, has it's own `Options` to control it's behaviour. Its not mandatory that you do this, however i've found it's commonly needed, so showing how it can be done.
-2. The handler not only has one set of options, but also has access to it's `http client name' it's being requested for. Therefore it can obtain it's options for the specific http client name - which are also built on demand as required. This allows the same handler to be configured per http client. Again this is not mandatory, but just a useful capability worth demonstrating.
+1. The handler I have implemented allows for different options based on the http client name. You may or may not need this - it's a useful pattern for me so I chose to demo it.
 
 
 
