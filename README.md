@@ -6,8 +6,9 @@ However it only lets you configure named `HttpClients` once - when building your
 
 What if within your application, you want to allow the configuration for the `HttpClient` to be amended - for example the `BaseAddress` or the `Handler's that are active.
 
-This library addresses this problem, although technically you only really need `Dazinator.Extensions.Options` to solve this problem - see that repo for details, this library provides some additional capabilities beyond the "raw" fix, to make things more easily consumable, and easier to configure http clients, with concepts such as handlers and other things.
+This library addresses this problem, not through allowing you to "mutate" any existing objects thats `IHttpClientFactory` knows about, but instead, allowing you to introduce newly named `HttpClient`s which will be lazily built on demand. You can therefore request a named http client with a name like "foo-v1" and then later, when you know you have new confiugration to apply, you can request "foo-v2" and at that point a new http client will be built and you can apply the latest configuration during that process.
 
+Technically, although you only really need `Dazinator.Extensions.Options` as the key enabler to solve this problem - see that repo for details, this library builds upon the raw capability added there, to provide some additional capabilities, to make things more easily consumable, and easier to configure http clients, with concepts such as handlers etc.
 
 ## Usage
 
