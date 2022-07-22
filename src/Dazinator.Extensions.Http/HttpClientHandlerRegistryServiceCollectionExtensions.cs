@@ -1,5 +1,6 @@
 namespace Dazinator.Extensions.Http
 {
+    using Dazinator.Extensions.Options;
     using Microsoft.Extensions.DependencyInjection;
 
     public static class HttpClientHandlerRegistryServiceCollectionExtensions

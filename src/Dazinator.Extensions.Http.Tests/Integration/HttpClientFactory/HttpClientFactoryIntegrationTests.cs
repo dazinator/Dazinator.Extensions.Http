@@ -10,7 +10,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
-    public class HttpClientFactoryOptions_IntegrationTests
+    public class HttpClientFactory_IntegrationTests
     {
         /// <summary>
         /// Verifies that when a http client with a name is requested, we can configure it's <see cref="HttpClientFactoryOptions"/> and this configuration happens once per name.
@@ -18,7 +18,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         [Theory]
         [InlineData("foo", "foo-v2", "bar", "bar-v2")] // each 
         [InlineData("foo", "foo", "foo", "foo", "foo")]
-        public void Can_Configure_LazilyForName(params string[] names)
+        public void Can_ConfigureHttpClientFactory_LazilyForName(params string[] names)
         {
             var configureOptionsInvocationCount = 0;
             var httpClientActionsInvocationCount = 0;
@@ -26,7 +26,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
               {
                   services.AddHttpClient();
                   // Add named options configuration AFTER other configuration
-                  services.Configure<HttpClientFactoryOptions>((sp, name, options) =>
+                  services.ConfigureHttpClientFactory((sp, name, options) =>
                   {
                       // We expect this to be invoked lazily with each IHttpClientFactory.Create(name) call - but only once per distinct name.
                       Interlocked.Increment(ref configureOptionsInvocationCount);
@@ -46,7 +46,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 Assert.NotNull(httpClient);
                 Assert.Equal($"http://{name}.localhost/", httpClient.BaseAddress.ToString());
                 // We expect http client actions to be invoked each time we get a http client.
-                Assert.Equal(i, httpClientActionsInvocationCount);
+                Assert.Equal(i + 1, httpClientActionsInvocationCount);
             }
 
             // We expect option configuration to be invoked only once per named http client.
@@ -59,7 +59,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Can_Configure_HttpMessageHandlerBuilderActions()
+        public async Task Can_ConfigureHttpClientFactory_HttpMessageHandlerBuilderActions()
         {
             var invocationCount = 0;
             var handlerLifetime = TimeSpan.FromSeconds(2);
@@ -105,7 +105,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Can_Configure_FromHttpClientOptionsAndHandlerRegistry()
+        public async Task Can_ConfigureHttpClientFactory_FromHttpClientOptionsAndHandlerRegistry()
         {
             var invocationCount = 0;
 
@@ -134,7 +134,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                              })));
 
                 // Configures HttpClientOptions on demand when a distinct name is requested.
-                services.Configure<HttpClientOptions>((sp, name, options) =>
+                services.ConfigureHttpClient((sp, name, options) =>
                 {
                     // load settings from some store using unique http client name (which can version)
                     if (name.StartsWith("foo-"))
@@ -152,49 +152,6 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                         options.MaxResponseContentBufferSize = 2000;
                         options.Timeout = TimeSpan.FromMinutes(2);
                         options.Handlers.Add(statusNotFoundHandlerName);
-                    }
-                });
-                // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-                services.Configure<HttpClientFactoryOptions>((sp, httpClientName, options) =>
-                {
-                    var logger = sp.GetRequiredService<ILogger<HttpMessageHandlerBuilder>>();
-                    // options.HandlerLifetime = handlerLifetime;
-                    var httpClientOptionsFactory = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>();
-                    var httpClientOptions = httpClientOptionsFactory.Get(httpClientName);
-
-                    //  options.ConfigureFromOptions(sp, name);
-                    options.HttpClientActions.Add((httpClient) => httpClientOptions.Apply(httpClient));
-
-                    if (httpClientOptions.EnableBypassInvalidCertificate)
-                    {
-                        logger.LogWarning("Http Client {HttpClientName} configured to accept any server certificate.", httpClientName);
-
-                        options.HttpMessageHandlerBuilderActions.Add(a =>
-                        {
-                            if ((a.PrimaryHandler ?? new HttpClientHandler()) is not HttpClientHandler primaryHandler)
-                            {
-                                logger.LogWarning("Configured Primary Handler for Http Client {HttpClientName} is not a HttpClientHandler and therefore DangerousAcceptAnyServerCertificateValidator cannot be set.", httpClientName);
-                            }
-                            else
-                            {
-                                primaryHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-                                a.PrimaryHandler = primaryHandler;
-                            }
-
-                            if (httpClientOptions.Handlers?.Any() ?? false)
-                            {
-                                var registry = sp.GetRequiredService<HttpClientHandlerRegistry>();
-                                foreach (var handlerName in httpClientOptions.Handlers)
-                                {
-                                    var handler = registry.GetHandlerInstance(handlerName, sp, httpClientName);
-                                    a.AdditionalHandlers.Add(handler);
-                                }
-                            }
-                            else
-                            {
-                                logger.LogWarning("ConfigureHttpClientFromOptions called on HttpClient: {HttpClientName} but no handlers were configured.", httpClientName);
-                            }
-                        });
                     }
                 });
             });
