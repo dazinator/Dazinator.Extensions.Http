@@ -1,8 +1,8 @@
 namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
 {
-    using Dazinator.Extensions.Http;
     using System.Net.Http;
     using System.Threading;
+    using Dazinator.Extensions.Http;
     using Dazinator.Extensions.Http.Tests.Integration.Fakes;
     using Dazinator.Extensions.Http.Tests.Utils;
     using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +10,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
 
-    public class HttpClientFactoryIntegrationTests
+    public class HttpClientFactoryOptions_IntegrationTests
     {
         /// <summary>
         /// Verifies that when a http client with a name is requested, we can configure it's <see cref="HttpClientFactoryOptions"/> and this configuration happens once per name.
@@ -18,72 +18,48 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         [Theory]
         [InlineData("foo", "foo-v2", "bar", "bar-v2")] // each 
         [InlineData("foo", "foo", "foo", "foo", "foo")]
-        public void CreateClient_WithName_ConfiguresHttpClientFactoryOptionsOncePerName(params string[] names)
+        public void Can_Configure_LazilyForName(params string[] names)
         {
-            var invocationCount = 0;
-
+            var configureOptionsInvocationCount = 0;
+            var httpClientActionsInvocationCount = 0;
             var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
               {
                   services.AddHttpClient();
                   // Add named options configuration AFTER other configuration
                   services.Configure<HttpClientFactoryOptions>((sp, name, options) =>
                   {
-                      Interlocked.Increment(ref invocationCount);
-                      options.HttpClientActions.Add(a => a.BaseAddress = new Uri($"http://{name}.localhost/"));
+                      // We expect this to be invoked lazily with each IHttpClientFactory.Create(name) call - but only once per distinct name.
+                      Interlocked.Increment(ref configureOptionsInvocationCount);
+                      options.HttpClientActions.Add(a =>
+                      {
+                          Interlocked.Increment(ref httpClientActionsInvocationCount);
+                          a.BaseAddress = new Uri($"http://{name}.localhost/");
+                      });
                   });
 
               });
 
-            // var names = new List<string>() { "foo", "foo-v2", "bar", "bar-v2" };
-            foreach (var name in names)
+            for (var i = 0; i < names.Length; i++)
             {
+                var name = names[i];
                 using var httpClient = sut.CreateClient(name);
                 Assert.NotNull(httpClient);
                 Assert.Equal($"http://{name}.localhost/", httpClient.BaseAddress.ToString());
+                // We expect http client actions to be invoked each time we get a http client.
+                Assert.Equal(i, httpClientActionsInvocationCount);
             }
 
+            // We expect option configuration to be invoked only once per named http client.
             var distinctNamedCount = names.Distinct().Count();
-            Assert.Equal(distinctNamedCount, invocationCount);
+            Assert.Equal(distinctNamedCount, configureOptionsInvocationCount);
         }
 
         /// <summary>
-        /// Verifies that when a named http client is requested, the HttpClientActions we have configured for it are invoked.
+        /// Verifies that when a named http client is requested, the HttpMessageHandlerBuilderActions we have configured for it are invoked only once for the HandlerLiftime duration. After the handler lifetime expires, the next time we request the same named http client, new handlers are built again, and so the HttpMessageHandlerBuilderActions should be invoked again to build the new handlers.
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task CreateClient_WithName_InvokesConfiguredHttpClientActions()
-        {
-            var invocationCount = 0;
-
-            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
-            {
-                services.AddHttpClient();
-                // Add named options configuration AFTER other configuration
-                services.Configure<HttpClientFactoryOptions>((sp, name, options) => options.HttpClientActions.Add(a =>
-                    {
-                        Interlocked.Increment(ref invocationCount);
-                        a.BaseAddress = new Uri($"http://{name}.localhost/");
-                    }));
-
-            });
-
-            var max = 10;
-            for (var i = 1; i <= max; i++)
-            {
-                using var httpClient = sut.CreateClient("foo");
-                Assert.NotNull(httpClient);
-                Assert.Equal($"http://foo.localhost/", httpClient.BaseAddress.ToString());
-                Assert.Equal(i, invocationCount);
-            }
-
-        }
-
-        /// <summary>
-        /// Verifies that when a named http client is requested, the HttpMessageHandlerBuilderActions we have configured for it are invoked only once for the HandlerLiftime duration. After the handler lifetime expires, the next time we request the same named http client, new handlers are built and so the HttpMessageHandlerBuilderActions should be invoked again to build the new handlers.
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task CreateClient_WithName_HttpMessageHandlerBuilderActions_OncePerNameAndLifetime()
+        public async Task Can_Configure_HttpMessageHandlerBuilderActions()
         {
             var invocationCount = 0;
             var handlerLifetime = TimeSpan.FromSeconds(2);
@@ -125,11 +101,11 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
 
 
         /// <summary>
-        /// Verifies that when a named http client is requested, the HttpMessageHandlerBuilderActions we have configured for it are invoked only once for the HandlerLiftime duration. After the handler lifetime expires, the next time we request the same named http client, new handlers are built and so the HttpMessageHandlerBuilderActions should be invoked again to build the new handlers.
+        /// Verifies that we can configure the <see cref="HttpClientFactoryOptions"/> using our options API which allows http client to be defined in terms of <see cref="HttpClientOptions"/> plus handlers registered with a <see cref="HttpClientHandlerRegistry"/>.
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task CreateClient_WithName_CanBeConfiguredViaHttpClientOptions()
+        public async Task Can_Configure_FromHttpClientOptionsAndHandlerRegistry()
         {
             var invocationCount = 0;
 
@@ -138,6 +114,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 services.AddHttpClient();
                 // Add named options configuration AFTER other configuration
 
+                // register some mock handlers in the handler registry.
                 var statusOkHandlerName = "statusOkHandler";
                 var statusNotFoundHandlerName = "statusNotFoundhandler";
                 var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
@@ -155,6 +132,8 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                                  var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
                                  return Task.FromResult(result);
                              })));
+
+                // Configures HttpClientOptions on demand when a distinct name is requested.
                 services.Configure<HttpClientOptions>((sp, name, options) =>
                 {
                     // load settings from some store using unique http client name (which can version)
@@ -175,6 +154,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                         options.Handlers.Add(statusNotFoundHandlerName);
                     }
                 });
+                // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
                 services.Configure<HttpClientFactoryOptions>((sp, httpClientName, options) =>
                 {
                     var logger = sp.GetRequiredService<ILogger<HttpMessageHandlerBuilder>>();
