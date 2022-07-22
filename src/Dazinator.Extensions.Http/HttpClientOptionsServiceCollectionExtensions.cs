@@ -29,14 +29,14 @@ namespace Dazinator.Extensions.Http
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static IServiceCollection SetupFromHttpClientOptions(this IHttpClientBuilder builder)
+        public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder)
         {
             var httpClientName = builder.Name;
             // services.Configure<HttpClientOptions>(configure);
             var services = builder.Services;
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
             services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
-            return services;
+            return builder;
         }
 
         private static void SetupHttpClientFactoryOptions(IServiceProvider serviceProvider, string httpClientName, HttpClientFactoryOptions httpClientFactoryOptions)
