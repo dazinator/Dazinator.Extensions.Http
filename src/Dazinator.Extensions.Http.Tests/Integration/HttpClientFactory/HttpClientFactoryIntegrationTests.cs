@@ -68,7 +68,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             {
                 services.AddHttpClient();
                 // Add named options configuration AFTER other configuration
-                services.Configure<HttpClientFactoryOptions>((sp, name, options) =>
+                services.ConfigureHttpClientFactory((sp, name, options) =>
                 {
                     options.HandlerLifetime = handlerLifetime;
 
