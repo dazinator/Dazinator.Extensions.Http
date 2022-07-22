@@ -166,5 +166,93 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
         }
 
+
+        /// <summary>
+        /// Verifies that we can configure the <see cref="HttpClientFactoryOptions"/> using our options API which allows http client to be defined in terms of <see cref="HttpClientOptions"/> plus handlers registered with a <see cref="HttpClientHandlerRegistry"/>.
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task Can_ConfigureHandlersWithDifferentOptions()
+        {
+            var invocationCount = 0;
+
+            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
+            {
+                services.AddHttpClient();
+                // Add named options configuration AFTER other configuration
+
+                // register some mock handlers in the handler registry.
+                services.Configure<StatusHandlerOptions>((sp, name, options) =>
+                {
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.OK;
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.NotFound;
+                    }
+                });
+
+                // Rgister a single handler
+                var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) =>
+                    registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
+                        r.Factory = (sp, httpClientName) =>
+                        {
+                            var optionsMontior = sp.GetRequiredService<IOptionsMonitor<StatusHandlerOptions>>();
+                            return new DelegatingHandlerWithOptions<StatusHandlerOptions>(httpClientName, optionsMontior, (request, handlerOptions, cancelToken) =>
+                                                    {
+                                                        var result = new HttpResponseMessage(handlerOptions.StatusCode);
+                                                        return Task.FromResult(result);
+                                                    });
+                        }));
+
+
+                // Configures HttpClientOptions on demand when a distinct name is requested.
+                services.ConfigureHttpClient((sp, name, options) =>
+                {
+
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options (named after the http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options (named after the http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
+                });
+            });
+
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
+
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
+
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+        }
+
+    }
+
+
+
+    public class StatusHandlerOptions
+    {
+        public System.Net.HttpStatusCode StatusCode { get; set; }
     }
 }
