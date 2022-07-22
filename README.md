@@ -6,8 +6,9 @@ However it only lets you configure named `HttpClients` once - when building your
 
 What if within your application, you want to allow the configuration for the `HttpClient` to be amended - for example the `BaseAddress` or the `Handler's that are active.
 
-This library addresses this problem, although technically you only really need `Dazinator.Extensions.Options` to solve this problem - see that repo for details, this library provides some additional capabilities beyond the "raw" fix, to make things more easily consumable, and easier to configure http clients, with concepts such as handlers and other things.
+This library addresses this problem, not through allowing you to "mutate" any existing objects thats `IHttpClientFactory` knows about, but instead, allowing you to introduce newly named `HttpClient`s which will be lazily built on demand. You can therefore request a named http client with a name like "foo-v1" and then later, when you know you have new confiugration to apply, you can request "foo-v2" and at that point a new http client will be built and you can apply the latest configuration during that process.
 
+Technically, although you only really need `Dazinator.Extensions.Options` as the key enabler to solve this problem - see that repo for details, this library builds upon the raw capability added there, to provide some additional capabilities, to make things more easily consumable, and easier to configure http clients, with concepts such as handlers etc.
 
 ## Usage
 
@@ -119,7 +120,11 @@ It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>`
 
 ```
 
-Now you can register this handler with the handler registry, and then configure it on a http client like so:
+Now you can do the following as shown in the example below:
+
+- Register a delegate to configure the handlers options dynamically based on the httpclient name that's requested.
+- Register the handler with the "handler registry" with a particular name. This allows you to add this handler "name" to a http clients "Handlers" list when
+configuring http clients. This will cause the handler to be added to the http clients HttpClientFactoryOptions later on
 
 ```cs
    services.AddHttpClient();
@@ -190,8 +195,7 @@ Now you can register this handler with the handler registry, and then configure 
 
 In the scenario above:-
 
-1. The handler I have implemented, has it's own `Options` to control it's behaviour. Its not mandatory that you do this, however i've found it's commonly needed, so showing how it can be done.
-2. The handler not only has one set of options, but also has access to it's `http client name' it's being requested for. Therefore it can obtain it's options for the specific http client name - which are also built on demand as required. This allows the same handler to be configured per http client. Again this is not mandatory, but just a useful capability worth demonstrating.
+1. The handler I have implemented allows for different options based on the http client name. You may or may not need this - it's a useful pattern for me so I chose to demo it.
 
 
 
