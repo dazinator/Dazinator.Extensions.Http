@@ -1,4 +1,4 @@
-namespace Dazinator.Extensions.Http.Tests.Implementation
+namespace Dazinator.Extensions.Http
 {
     using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +9,6 @@ namespace Dazinator.Extensions.Http.Tests.Implementation
             var registry = new HttpClientHandlerRegistry();
             registerHandlers(registry);
             services.AddSingleton(registry);
-            registry.ConfigureHandlerDefaults(services);
             return registry;
         }
     }

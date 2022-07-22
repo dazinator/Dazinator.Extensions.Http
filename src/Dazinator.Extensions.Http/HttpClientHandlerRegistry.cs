@@ -1,7 +1,6 @@
-namespace Dazinator.Extensions.Http.Tests.Implementation
+namespace Dazinator.Extensions.Http
 {
     using System.Net.Http;
-    using Microsoft.Extensions.DependencyInjection;
 
 
     // This should be registered as a singleton, and all the handlers registered with a name.
@@ -40,13 +39,6 @@ namespace Dazinator.Extensions.Http.Tests.Implementation
 
         public HttpClientHandlerRegistration GetHandlerRegistration(string handlerName) => RegisteredHandlers[handlerName];
 
-        public void ConfigureHandlerDefaults(IServiceCollection services)
-        {
-            foreach (var item in RegisteredHandlers)
-            {
-                item.Value.OnConfigure?.Invoke(services);
-            }
-        }
 
         public void ConfigureHandlerForNamedClient(string handlerName, string clientName)
         {

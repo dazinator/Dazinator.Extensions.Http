@@ -1,4 +1,4 @@
-namespace Dazinator.Extensions.Http.Tests.Implementation
+namespace Dazinator.Extensions.Http
 {
     /// <summary>
     /// Encapsulates options that can be applied to an <see cref="HttpClient"/>

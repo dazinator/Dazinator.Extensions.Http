@@ -1,8 +1,9 @@
-namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
+namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
 {
+    using Dazinator.Extensions.Http;
     using System.Net.Http;
     using System.Threading;
-    using Dazinator.Extensions.Http.Tests.Implementation;
+    using Dazinator.Extensions.Http.Tests.Integration.Fakes;
     using Dazinator.Extensions.Http.Tests.Utils;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Http;
@@ -228,11 +229,5 @@ namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
             Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
         }
 
-    }
-
-    public class NotImlementedExceptionHttpMessageHandler : HttpMessageHandler
-    {
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 }

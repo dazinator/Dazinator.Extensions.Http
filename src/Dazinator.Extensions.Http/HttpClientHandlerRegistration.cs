@@ -1,7 +1,6 @@
-namespace Dazinator.Extensions.Http.Tests.Implementation
+namespace Dazinator.Extensions.Http
 {
     using System.Net.Http;
-    using Microsoft.Extensions.DependencyInjection;
 
     public class HttpClientHandlerRegistration
     {
@@ -15,9 +14,5 @@ namespace Dazinator.Extensions.Http.Tests.Implementation
         /// </summary>
         public Action<string> OnConfigureNamedClient { get; set; }
 
-        /// <summary>
-        /// Action to run to configure the default options for this handler. Runs once per handler.
-        /// </summary>
-        public Action<IServiceCollection> OnConfigure { get; set; }
     }
 }

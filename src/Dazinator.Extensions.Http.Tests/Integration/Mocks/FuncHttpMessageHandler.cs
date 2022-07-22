@@ -1,4 +1,4 @@
-namespace Dazinator.Extensions.Http.Tests.Subjects.HttpClientFactory
+namespace Dazinator.Extensions.Http.Tests.Integration.Fakes
 {
     using System.Net.Http;
     using System.Threading;
