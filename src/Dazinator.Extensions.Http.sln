@@ -8,6 +8,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{5DA0362F-421C-4F46-8658-B9439B106513}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dazinator.Extensions.Http", "Dazinator.Extensions.Http\Dazinator.Extensions.Http.csproj", "{F56EA003-77AE-4A56-8651-F21727D82ABA}"
