@@ -1,6 +1,7 @@
 namespace Dazinator.Extensions.Http
 {
     using System.Net.Http;
+    using Microsoft.Extensions.DependencyInjection;
 
 
     // This should be registered as a singleton, and all the handlers registered with a name.
@@ -20,7 +21,9 @@ namespace Dazinator.Extensions.Http
             where THandler : DelegatingHandler
         {
             var registration = new HttpClientHandlerRegistration();
+           // registration.Factory = (sp, httpClientName) => ActivatorUtilities.CreateInstance<THandler>(sp, httpClientName); // sp.GetRequiredService<THandler>();
             configure(registration);
+            registration.EnsureIsValid();
             RegisteredHandlers.Add(handlerName, registration);
             return this;
         }
@@ -28,11 +31,13 @@ namespace Dazinator.Extensions.Http
         public DelegatingHandler? GetHandlerInstance(string handlerName, IServiceProvider serviceProvider, string httpClientName)
         {
             var reg = RegisteredHandlers[handlerName];
-
+            //reg.
             //  var factory = reg.Factory ?? (sp, name)=>serviceProvider.GetRequiredService<>;
+
             if (reg.Factory == null)
             {
-                throw new InvalidOperationException("Factory null");
+               // return serviceProvider.GetRequiredService(typeof(reg.))
+                throw new InvalidOperationException("Handler is registered in registry without a factory method set.");
             }
             return reg.Factory?.Invoke(serviceProvider, httpClientName);
         }

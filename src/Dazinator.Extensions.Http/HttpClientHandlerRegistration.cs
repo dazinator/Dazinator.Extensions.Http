@@ -14,5 +14,12 @@ namespace Dazinator.Extensions.Http
         /// </summary>
         public Action<string> OnConfigureNamedClient { get; set; }
 
+        internal void EnsureIsValid()
+        {
+            if(Factory == null)
+            {
+                throw new Exception("Invalid handler registration: Factory cannot be NULL");
+            }
+        }
     }
 }
