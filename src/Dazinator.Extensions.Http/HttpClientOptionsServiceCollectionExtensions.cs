@@ -14,7 +14,8 @@ namespace Dazinator.Extensions.Http
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
             services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
             return services;
-        }
+        }   
+
 
         public static IServiceCollection ConfigureHttpClientFactory(this IServiceCollection services,
            Action<IServiceProvider, string, HttpClientFactoryOptions> configure)
@@ -32,10 +33,15 @@ namespace Dazinator.Extensions.Http
         public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder)
         {
             var httpClientName = builder.Name;
-            // services.Configure<HttpClientOptions>(configure);
             var services = builder.Services;
+            services.AddOptions<HttpClientFactoryOptions>(httpClientName)
+                    .Configure<IServiceProvider>((o, sp) =>
+                    {
+                        SetupHttpClientFactoryOptions(sp, httpClientName, o);
+                    });
+
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
+            //  builder.Services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
             return builder;
         }
 
@@ -53,7 +59,6 @@ namespace Dazinator.Extensions.Http
             if (httpClientOptions.EnableBypassInvalidCertificate)
             {
                 logger.LogWarning("Http Client {HttpClientName} configured to accept any server certificate.", httpClientName);
-
                 httpClientFactoryOptions.HttpMessageHandlerBuilderActions.Add(a =>
                 {
                     if ((a.PrimaryHandler ?? new HttpClientHandler()) is not HttpClientHandler primaryHandler)
@@ -65,27 +70,35 @@ namespace Dazinator.Extensions.Http
                         primaryHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
                         a.PrimaryHandler = primaryHandler;
                     }
-
-                    if (httpClientOptions.Handlers?.Any() ?? false)
-                    {
-                        var registry = serviceProvider.GetRequiredService<HttpClientHandlerRegistry>();
-                        foreach (var handlerName in httpClientOptions.Handlers)
-                        {
-                            var handler = registry.GetHandlerInstance(handlerName, serviceProvider, httpClientName);
-                            if (handler == null)
-                            {
-                                throw new Exception($"Handler named: {handlerName} was not found, for http client named: {httpClientName}");
-                            }
-                            a.AdditionalHandlers.Add(handler);
-                        }
-                    }
-                    else
-                    {
-                        logger.LogWarning("No handlers configured for HttpClient: {HttpClientName}.", httpClientName);
-                    }
                 });
-
             }
+
+            if (httpClientOptions.Handlers?.Any() ?? false)
+            {
+                httpClientFactoryOptions.HttpMessageHandlerBuilderActions.Add(a =>
+                {
+                    var registry = serviceProvider.GetRequiredService<HttpClientHandlerRegistry>();
+
+                    foreach (var handlerName in httpClientOptions.Handlers)
+                    {
+                        logger.LogDebug("Creating handler named: {HandlerName} for HttpClient: {HttpClientName}.", handlerName, httpClientName);
+
+                        var handler = registry.GetHandlerInstance(handlerName, serviceProvider, httpClientName);
+                        if (handler == null)
+                        {
+                            throw new Exception($"Handler named: {handlerName} was not found, for http client named: {httpClientName}");
+                        }
+
+                        a.AdditionalHandlers.Add(handler);
+                    }
+                });               
+               
+            }
+            else
+            {
+                logger.LogWarning("No handlers configured for HttpClient: {HttpClientName}.", httpClientName);
+            }
+
         }
     }
 }
