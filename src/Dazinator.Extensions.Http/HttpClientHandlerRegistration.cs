@@ -16,7 +16,7 @@ namespace Dazinator.Extensions.Http
 
         internal void EnsureIsValid()
         {
-            if(Factory == null)
+            if (Factory == null)
             {
                 throw new Exception("Invalid handler registration: Factory cannot be NULL");
             }

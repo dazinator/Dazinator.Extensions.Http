@@ -36,7 +36,6 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                           a.BaseAddress = new Uri($"http://{name}.localhost/");
                       });
                   });
-
               });
 
             for (var i = 0; i < names.Length; i++)
@@ -137,7 +136,9 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // Configures HttpClientOptions on demand when a distinct name is requested.
                 services.ConfigureHttpClient((sp, name, options) =>
                 {
-                    // load settings from some store using unique http client name (which can version)
+                    // load settings from some store using unique http client name (which can version)]
+                    // "[app-code]-[system-name]-[type]-[purpose]-0283928923928392";
+                    // "JNL-Integrity-Send-Cashflows-0283928923928392
                     if (name.StartsWith("foo-"))
                     {
                         options.BaseAddress = $"http://{name}.localhost";

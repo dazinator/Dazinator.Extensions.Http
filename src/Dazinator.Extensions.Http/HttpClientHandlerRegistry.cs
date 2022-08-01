@@ -21,7 +21,7 @@ namespace Dazinator.Extensions.Http
             where THandler : DelegatingHandler
         {
             var registration = new HttpClientHandlerRegistration();
-           // registration.Factory = (sp, httpClientName) => ActivatorUtilities.CreateInstance<THandler>(sp, httpClientName); // sp.GetRequiredService<THandler>();
+            // registration.Factory = (sp, httpClientName) => ActivatorUtilities.CreateInstance<THandler>(sp, httpClientName); // sp.GetRequiredService<THandler>();
             configure(registration);
             registration.EnsureIsValid();
             RegisteredHandlers.Add(handlerName, registration);
@@ -36,7 +36,7 @@ namespace Dazinator.Extensions.Http
 
             if (reg.Factory == null)
             {
-               // return serviceProvider.GetRequiredService(typeof(reg.))
+                // return serviceProvider.GetRequiredService(typeof(reg.))
                 throw new InvalidOperationException("Handler is registered in registry without a factory method set.");
             }
             return reg.Factory?.Invoke(serviceProvider, httpClientName);
