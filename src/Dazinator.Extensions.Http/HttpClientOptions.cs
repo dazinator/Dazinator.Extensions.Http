@@ -7,6 +7,8 @@ namespace Dazinator.Extensions.Http
     {
         public bool EnableBypassInvalidCertificate { get; set; } = false;
 
+        public bool UseCookies { get; set; } = false;
+
         /// <summary>
         /// <see cref="HttpClient.BaseAddress"/>
         /// </summary>
@@ -40,7 +42,7 @@ namespace Dazinator.Extensions.Http
             if (MaxResponseContentBufferSize != null)
             {
                 httpClient.MaxResponseContentBufferSize = MaxResponseContentBufferSize.Value;
-            }
+            }            
         }
 
     }

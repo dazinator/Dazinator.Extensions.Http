@@ -53,22 +53,26 @@ namespace Dazinator.Extensions.Http
             //  options.ConfigureFromOptions(sp, name);
             httpClientFactoryOptions.HttpClientActions.Add((httpClient) => httpClientOptions.Apply(httpClient));
 
-            if (httpClientOptions.EnableBypassInvalidCertificate)
+            // configure primary handler.
+            httpClientFactoryOptions.HttpMessageHandlerBuilderActions.Add(a =>
             {
-                logger.LogWarning("Http Client {HttpClientName} configured to accept any server certificate.", httpClientName);
-                httpClientFactoryOptions.HttpMessageHandlerBuilderActions.Add(a =>
+                if ((a.PrimaryHandler ?? new HttpClientHandler()) is not HttpClientHandler primaryHandler)
                 {
-                    if ((a.PrimaryHandler ?? new HttpClientHandler()) is not HttpClientHandler primaryHandler)
-                    {
-                        logger.LogWarning("Configured Primary Handler for Http Client {HttpClientName} is not a HttpClientHandler and therefore DangerousAcceptAnyServerCertificateValidator cannot be set.", httpClientName);
-                    }
-                    else
-                    {
-                        primaryHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-                        a.PrimaryHandler = primaryHandler;
-                    }
-                });
-            }
+                    logger.LogWarning("Configured Primary Handler for Http Client {HttpClientName} is not a HttpClientHandler and therefore DangerousAcceptAnyServerCertificateValidator and UseCookies cannot be set.", httpClientName);
+                    return;
+                }
+
+                primaryHandler.UseCookies = httpClientOptions.UseCookies;
+
+                if (httpClientOptions.EnableBypassInvalidCertificate)
+                {
+                    logger.LogWarning("Http Client {HttpClientName} configured to accept any server certificate.", httpClientName);
+                    primaryHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                    a.PrimaryHandler = primaryHandler;
+                }
+
+            });
+
 
             if (httpClientOptions.Handlers?.Any() ?? false)
             {
