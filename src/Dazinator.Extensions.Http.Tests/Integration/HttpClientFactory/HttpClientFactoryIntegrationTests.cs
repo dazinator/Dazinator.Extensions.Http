@@ -117,7 +117,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // register some mock handlers in the handler registry.
                 var statusOkHandlerName = "statusOkHandler";
                 var statusNotFoundHandlerName = "statusNotFoundhandler";
-                var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+                var handlerRegistry = services.ConfigureHttpClients((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
 
                         // var f = new DelegatingHandler();
                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
@@ -180,62 +180,63 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
 
             var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
             {
-                services.AddHttpClient();
-                // Add named options configuration AFTER other configuration
+                // services.AddHttpClient();
+                // Add named options configuration AFTER other configuration              
 
-                // register some mock handlers in the handler registry.
-                services.Configure<StatusHandlerOptions>((sp, name, options) =>
+                // Rgister a handler, that uses named options to configure itself to behave differently per named http client.
+                services.ConfigureHttpClients((registry) =>
                 {
-                    if (name.StartsWith("foo-"))
-                    {
-                        options.StatusCode = System.Net.HttpStatusCode.OK;
-                    }
-                    if (name.StartsWith("bar-"))
-                    {
-                        options.StatusCode = System.Net.HttpStatusCode.NotFound;
-                    }
-                });
-
-                // Rgister a single handler
-                var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) =>
                     registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
+                    {
                         r.Factory = (sp, httpClientName) =>
                         {
                             var optionsMontior = sp.GetRequiredService<IOptionsMonitor<StatusHandlerOptions>>();
                             return new DelegatingHandlerWithOptions<StatusHandlerOptions>(httpClientName, optionsMontior, (request, handlerOptions, cancelToken) =>
-                                                    {
-                                                        var result = new HttpResponseMessage(handlerOptions.StatusCode);
-                                                        return Task.FromResult(result);
-                                                    });
-                        }));
+                            {
+                                var result = new HttpResponseMessage(handlerOptions.StatusCode);
+                                return Task.FromResult(result);
+                            });
+                        };
+                        r.Services.Configure<StatusHandlerOptions>((sp, name, options) =>
+                        {
+                            if (name.StartsWith("foo-"))
+                            {
+                                options.StatusCode = System.Net.HttpStatusCode.OK;
+                            }
+                            if (name.StartsWith("bar-"))
+                            {
+                                options.StatusCode = System.Net.HttpStatusCode.NotFound;
+                            }
+                        });
+                    });
 
-
-                // Configures HttpClientOptions on demand when a distinct name is requested.
-                services.ConfigureHttpClient((sp, name, options) =>
-                {
-
-                    if (name.StartsWith("foo-"))
+                    // configure two named http clients, to use the above status handler.
+                    registry.Services.ConfigureHttpClient((sp, name, options) =>
                     {
-                        options.BaseAddress = $"http://{name}.localhost";
-                        options.EnableBypassInvalidCertificate = true;
-                        options.MaxResponseContentBufferSize = 2000;
-                        options.Timeout = TimeSpan.FromMinutes(2);
-                        // Both clients have the same handler "status-handler" added.
-                        // But as the handler has different named options (named after the http client name) the same
-                        // handler ends up configured specific for each http client.
-                        options.Handlers.Add("status-handler");
-                    }
-                    if (name.StartsWith("bar-"))
-                    {
-                        options.BaseAddress = $"http://{name}.localhost";
-                        options.EnableBypassInvalidCertificate = true;
-                        options.MaxResponseContentBufferSize = 2000;
-                        options.Timeout = TimeSpan.FromMinutes(2);
-                        // Both clients have the same handler "status-handler" added.
-                        // But as the handler has different named options (named after the http client name) the same
-                        // handler ends up configured specific for each http client.
-                        options.Handlers.Add("status-handler");
-                    }
+
+                        if (name.StartsWith("foo-"))
+                        {
+                            options.BaseAddress = $"http://{name}.localhost";
+                            options.EnableBypassInvalidCertificate = true;
+                            options.MaxResponseContentBufferSize = 2000;
+                            options.Timeout = TimeSpan.FromMinutes(2);
+                            // Both clients have the same handler "status-handler" added.
+                            // But as the handler has different named options (named after the http client name) the same
+                            // handler ends up configured specific for each http client.
+                            options.Handlers.Add("status-handler");
+                        }
+                        if (name.StartsWith("bar-"))
+                        {
+                            options.BaseAddress = $"http://{name}.localhost";
+                            options.EnableBypassInvalidCertificate = true;
+                            options.MaxResponseContentBufferSize = 2000;
+                            options.Timeout = TimeSpan.FromMinutes(2);
+                            // Both clients have the same handler "status-handler" added.
+                            // But as the handler has different named options configured (named after each http client name) the same
+                            // handler ends up configured specific for each http client.
+                            options.Handlers.Add("status-handler");
+                        }
+                    });
                 });
             });
 
@@ -258,7 +259,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // register some mock handlers in the handler registry.
                 var statusOkHandlerName = "statusOkHandler";
                 var statusNotFoundHandlerName = "statusNotFoundhandler";
-                var handlerRegistry = services.ConfigureHttpClientHandlerRegistry((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+                var handlerRegistry = services.ConfigureHttpClients((registry) => registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
 
                         // var f = new DelegatingHandler();
                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>

@@ -4,8 +4,9 @@ namespace Dazinator.Extensions.Http
 
     public static class HttpClientHandlerRegistryServiceCollectionExtensions
     {
-        public static HttpClientHandlerRegistry ConfigureHttpClientHandlerRegistry(this IServiceCollection services, Action<HandlerRegistryBuilder> registerHandlers)
+        public static HttpClientHandlerRegistry ConfigureHttpClients(this IServiceCollection services, Action<HandlerRegistryBuilder> registerHandlers)
         {
+            services.AddHttpClient();
             var registry = new HttpClientHandlerRegistry();
             var builder = new HandlerRegistryBuilder(services, registry);
             registerHandlers(builder);
