@@ -9,7 +9,7 @@ namespace Dazinator.Extensions.Http
             services.AddHttpClient();
             var registry = new HttpClientHandlerRegistry();
             var builder = new HandlerRegistryBuilder(services, registry);
-            registerHandlers(builder);            
+            registerHandlers(builder);
             services.AddSingleton(registry);
             return registry;
         }

@@ -186,7 +186,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // Rgister a handler, that uses named options to configure itself to behave differently per named http client.
                 services.ConfigureHttpClients((registry) =>
                 {
-                    registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
+                    registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (services, r) =>
                     {
                         r.Factory = (sp, httpClientName) =>
                         {
@@ -197,7 +197,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                                 return Task.FromResult(result);
                             });
                         };
-                        r.Services.Configure<StatusHandlerOptions>((sp, name, options) =>
+                        services.Configure<StatusHandlerOptions>((sp, name, options) =>
                         {
                             if (name.StartsWith("foo-"))
                             {
