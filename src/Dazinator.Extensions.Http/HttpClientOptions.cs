@@ -42,7 +42,7 @@ namespace Dazinator.Extensions.Http
             if (MaxResponseContentBufferSize != null)
             {
                 httpClient.MaxResponseContentBufferSize = MaxResponseContentBufferSize.Value;
-            }            
+            }
         }
 
     }
