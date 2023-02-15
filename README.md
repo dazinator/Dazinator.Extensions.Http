@@ -203,45 +203,34 @@ In the scenario above:-
 
 1. The handler I have implemented allows for different options based on the http client name. You may or may not need this - it's a useful pattern for me so I chose to demo it.
 
-### Hybrid approach
+### Configuring named httpclients using SetupFromHttpClientOptions
 
-Suppose you don't need to reconfigure http clients at runtime and you are registering specific named clients.
-You might have tests and things that register specific named clients etc.
-However you still want to derive the http clients configuration from the more flexible `HttpClientOptions` approach specified here - i.e where you can map handlers for the client etc etc.
+Suppose you are adding named http clients and the names are known at development time.
+For example, you might have tests and things that register specific named clients etc.
+You still wannt configure them using the more powerful `HttpClientOptions` approach specified here - i.e where you can map handlers for the client etc etc.
 
-1. Configure the `HttpClientOptions` either using the `Configure` overload with a matching name, or like the overload below that receives the name dynamically.
+```cs             
 
-```cs
-                services.Configure<HttpClientOptions>((sp, name, options) =>
-                {
-                    if (name.StartsWith("foo-"))
-                    {
-                        options.BaseAddress = $"http://{name}.localhost";
-                        options.EnableBypassInvalidCertificate = true;
-                        options.MaxResponseContentBufferSize = 2000;
-                        options.Timeout = TimeSpan.FromMinutes(2);
-                       // options.Handlers.Add(statusOkHandlerName);
-                    }
-                    if (name.StartsWith("bar-"))
-                    {
-                        options.BaseAddress = $"http://{name}.localhost";
-                        options.EnableBypassInvalidCertificate = true;
-                        options.MaxResponseContentBufferSize = 2000;
-                        options.Timeout = TimeSpan.FromMinutes(2);
-                       // options.Handlers.Add(statusNotFoundHandlerName);
-                    }
-
-                });
-
-                services.AddHttpClient("foo-v1")
-                        .SetupFromHttpClientOptions();
+               services.AddHttpClient("foo-v1")
+                        .SetupFromHttpClientOptions((options) =>
+                        {
+                            options.BaseAddress = $"http://foo-v1.localhost";
+                            options.EnableBypassInvalidCertificate = true;
+                            options.MaxResponseContentBufferSize = 2000;
+                            options.Timeout = TimeSpan.FromMinutes(2);
+                            options.Handlers.Add(statusOkHandlerName);
+                        });
 
                 services.AddHttpClient("bar-v1")
-                        .SetupFromHttpClientOptions();
+                        .SetupFromHttpClientOptions((options) =>
+                        {
+                            options.BaseAddress = $"http://bar-v1.localhost";
+                            options.EnableBypassInvalidCertificate = true;
+                            options.MaxResponseContentBufferSize = 2000;
+                            options.Timeout = TimeSpan.FromMinutes(2);
+                            options.Handlers.Add(statusNotFoundHandlerName);
+                        });
 ```
 
-The `SetupFromHttpClientOptions` extension method shown above is the feature here. It will apply the `HttpClientOptions` that you've configured for the same client name being built.
-
-
-
+The `SetupFromHttpClientOptions` extension method shown above is the feature here. It will configure thenamed HttpClient from the `HttpClientOptions` that you connfigure inlinne for it.
 

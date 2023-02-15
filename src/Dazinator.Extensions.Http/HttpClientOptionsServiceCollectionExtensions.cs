@@ -1,5 +1,6 @@
 namespace Dazinator.Extensions.Http
 {
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Http;
     using Microsoft.Extensions.Logging;
@@ -7,11 +8,19 @@ namespace Dazinator.Extensions.Http
 
     public static class HttpClientOptionsServiceCollectionExtensions
     {
-        public static IServiceCollection ConfigureHttpClient(this IServiceCollection services,
+        public static IServiceCollection AddDynamicNamedHttpClients(this IServiceCollection services,
             Action<IServiceProvider, string, HttpClientOptions> configure)
         {
-            services.Configure<HttpClientOptions>(configure);
+            services.ConfigureUponRequest<HttpClientOptions>(configure);
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
+            services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
+            return services;
+        }
+
+        public static IServiceCollection AddDynamicNamedHttpClients(this IServiceCollection services,
+          Func<string, IConfiguration> getConfig)
+        {
+            services.ConfigureUponRequest<HttpClientOptions>((name) => getConfig(name));
             services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
             return services;
         }
@@ -21,25 +30,60 @@ namespace Dazinator.Extensions.Http
            Action<IServiceProvider, string, HttpClientFactoryOptions> configure)
         {
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            services.Configure<HttpClientFactoryOptions>(configure);
+            services.ConfigureUponRequest<HttpClientFactoryOptions>(configure);
             return services;
         }
 
+        ///// <summary>
+        ///// Configure this http client by configuring a simpler proxy options object of type <see cref="HttpClientOptions"/> which must be configured seperately.
+        ///// </summary>
+        ///// <param name="builder"></param>
+        ///// <returns></returns>
+        //[Obsolete("Will be removed in future, use the overload to configure the HttpClientOptions inline.")]
+        //public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder)
+        //{
+        //    var httpClientName = builder.Name;
+        //    var services = builder.Services;
+        //    services.AddOptions<HttpClientFactoryOptions>(httpClientName)
+        //            .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
+
+        //    // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
+        //    //  builder.Services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
+        //    return builder;
+        //}
+
         /// <summary>
-        /// Uses <see cref="HttpClientOptions"/> that have been configured with the same name as this http client, in order to configure the http client and handlers etc.
+        /// Configure this http client by configuring a simpler proxy options object of type <see cref="HttpClientOptions"/>
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder)
+        public static IHttpClientBuilder ConfigureOptions(this IHttpClientBuilder builder, Action<HttpClientOptions> configure)
         {
             var httpClientName = builder.Name;
             var services = builder.Services;
+            services.Configure<HttpClientOptions>(httpClientName, configure);
             services.AddOptions<HttpClientFactoryOptions>(httpClientName)
-                    .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
+                   .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
 
-            // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            //  builder.Services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
             return builder;
+            //  return SetupFromHttpClientOptions(builder);
+        }
+
+        /// <summary>
+        /// Configure this http client by configuring a simpler proxy options object of type <see cref="HttpClientOptions"/> from <see cref="IConfiguration"/>
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static IHttpClientBuilder ConfigureOptions(this IHttpClientBuilder builder, IConfiguration config)
+        {
+            var httpClientName = builder.Name;
+            var services = builder.Services;
+            services.Configure<HttpClientOptions>(httpClientName, config);
+            services.AddOptions<HttpClientFactoryOptions>(httpClientName)
+                   .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
+
+            return builder;
+            //  return SetupFromHttpClientOptions(builder);
         }
 
         private static void SetupHttpClientFactoryOptions(IServiceProvider serviceProvider, string httpClientName, HttpClientFactoryOptions httpClientFactoryOptions)
@@ -102,40 +146,18 @@ namespace Dazinator.Extensions.Http
 
         }
 
-        /// <summary>
-        /// Uses <see cref="HttpClientOptions"/> that have been configured with the same name as this http client, in order to configure the http client and handlers etc.
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
-        public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder, Action<string, HttpClientOptions> configure)
-        {
-            var httpClientName = builder.Name;
-            var services = builder.Services;
 
-            services.Configure<HttpClientOptions>(configure);
-            return SetupFromHttpClientOptions(builder);
-        }
-
-
-        public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder, Action<HttpClientOptions> configure)
-        {
-            var httpClientName = builder.Name;
-            var services = builder.Services;
-            services.Configure<HttpClientOptions>(httpClientName, configure);
-            return SetupFromHttpClientOptions(builder);
-        }
-
-        /// <summary>
-        /// Fluent helper method for configuring builder without breaking method chaining.
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <param name="configure"></param>
-        /// <returns></returns>
-        public static IHttpClientBuilder WithBuilder(this IHttpClientBuilder builder, Action<IHttpClientBuilder> configure)
-        {
-            configure?.Invoke(builder);
-            return SetupFromHttpClientOptions(builder);
-        }
+        ///// <summary>
+        ///// Fluent helper method for configuring builder without breaking method chaining.
+        ///// </summary>
+        ///// <param name="builder"></param>
+        ///// <param name="configure"></param>
+        ///// <returns></returns>
+        //public static IHttpClientBuilder WithBuilder(this IHttpClientBuilder builder, Action<IHttpClientBuilder> configure)
+        //{
+        //    configure?.Invoke(builder);
+        //    return SetupFromHttpClientOptions(builder);
+        //}
 
     }
 }
