@@ -46,17 +46,19 @@ There are different usage patterns, starting simple then varying in sophisticati
 
 ### More advanced
 
-Rather than configuring the `HttpClientFactoryOptions` directly, you can configure a "smarter" set of options provided by this library.
-Based on this setup, it will configure the `HttpClientFactoryOptions` accordingly behind the scenes similar to above.
+Rather than configuring the `HttpClientFactoryOptions` directly, you can configure httpclients from a "smarter" set of options provided by this library.
+These options cnn be configured lazily for each named client, either via a configure action delegate, or from an IConfiguration.
+By configuring these options, they will then be used to configure `HttpClientFactoryOptions` accordingly behind the scenes similar to above.
 
 
 ```cs
   services.AddHttpClient();
-  services.ConfigureHttpClient((sp, name, options) =>
+  services.AddDynamicNamedHttpClients((sp, name, options) =>
   {
       // load settings from some store using unique http client name (which can version)
       if (name.StartsWith("foo-"))
       {
+          options.UseCookies = true;
           options.BaseAddress = $"http://{name}.localhost";
           options.EnableBypassInvalidCertificate = true;
           options.MaxResponseContentBufferSize = 2000;
@@ -160,7 +162,7 @@ It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>`
                     });
 
                     // 3). configure two named http clients, to use the above status handler.
-                    registry.Services.ConfigureHttpClient((sp, name, options) =>
+                    registry.AddDynamicNamedHttpClients((sp, name, options) =>
                     {
 
                         if (name.StartsWith("foo-"))
@@ -207,12 +209,12 @@ In the scenario above:-
 
 Suppose you are adding named http clients and the names are known at development time.
 For example, you might have tests and things that register specific named clients etc.
-You still wannt configure them using the more powerful `HttpClientOptions` approach specified here - i.e where you can map handlers for the client etc etc.
+You still want configure them using the more powerful `HttpClientOptions` approach specified here - i.e where you can map handlers for the client etc etc.
 
 ```cs             
 
                services.AddHttpClient("foo-v1")
-                        .SetupFromHttpClientOptions((options) =>
+                        .ConfigureOptions((options) =>
                         {
                             options.BaseAddress = $"http://foo-v1.localhost";
                             options.EnableBypassInvalidCertificate = true;
@@ -222,15 +224,5 @@ You still wannt configure them using the more powerful `HttpClientOptions` appro
                         });
 
                 services.AddHttpClient("bar-v1")
-                        .SetupFromHttpClientOptions((options) =>
-                        {
-                            options.BaseAddress = $"http://bar-v1.localhost";
-                            options.EnableBypassInvalidCertificate = true;
-                            options.MaxResponseContentBufferSize = 2000;
-                            options.Timeout = TimeSpan.FromMinutes(2);
-                            options.Handlers.Add(statusNotFoundHandlerName);
-                        });
+                        .ConfigureOptions(Configuration); // can also bind from IConfiguration
 ```
-
-The `SetupFromHttpClientOptions` extension method shown above is the feature here. It will configure thenamed HttpClient from the `HttpClientOptions` that you connfigure inlinne for it.
-
