@@ -19,65 +19,18 @@ namespace Dazinator.Extensions.Http
             return services;
         }
 
-
-        public static IServiceCollection ConfigureHttpClientOptions(this IServiceCollection services,
-            Action<IServiceProvider, string, HttpClientOptions> configure)
-        {
-            services.ConfigureUponRequest<HttpClientOptions>(configure);
-            // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            services.ConfigureHttpClientFactoryOptions(SetupHttpClientFactoryOptions);
-            return services;
-        }
-
-        ///// <summary>
-        ///// A Sugar method purely to aid readability.
-        ///// </summary>
-        ///// <param name="services"></param>
-        ///// <param name="configure"></param>
-        ///// <returns></returns>
-        //public static IServiceCollection Configure<TOptions>(this IServiceCollection services,
-        //   Action<IServiceProvider, string, TOptions> configure)
-        //    where TOptions: class
-        //{
-        //    services.ConfigureUponRequest<TOptions>(configure);           
-        //    return services;
-        //}
-
-
-        public static IServiceCollection ConfigureHttpClientOptions(this IServiceCollection services,
-          Func<string, IConfiguration> getConfig)
-        {
-            services.ConfigureUponRequest<HttpClientOptions>((name) => getConfig(name));
-            services.ConfigureHttpClientFactoryOptions(SetupHttpClientFactoryOptions);
-            return services;
-        }
-
-
-        public static IServiceCollection ConfigureHttpClientFactoryOptions(this IServiceCollection services,
-           Action<IServiceProvider, string, HttpClientFactoryOptions> configure)
+        public static ConfigureUponRequestBuilder<HttpClientOptions, IServiceCollection> ConfigureHttpClientOptions(this IServiceCollection services)
         {
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            services.ConfigureUponRequest<HttpClientFactoryOptions>(configure);
-            return services;
+            services.ConfigureHttpClientFactoryOptions().From(SetupHttpClientFactoryOptions);
+            return services.ConfigureUponRequest<HttpClientOptions>();
         }
 
-        ///// <summary>
-        ///// Configure this http client by configuring a simpler proxy options object of type <see cref="HttpClientOptions"/> which must be configured seperately.
-        ///// </summary>
-        ///// <param name="builder"></param>
-        ///// <returns></returns>
-        //[Obsolete("Will be removed in future, use the overload to configure the HttpClientOptions inline.")]
-        //public static IHttpClientBuilder SetupFromHttpClientOptions(this IHttpClientBuilder builder)
-        //{
-        //    var httpClientName = builder.Name;
-        //    var services = builder.Services;
-        //    services.AddOptions<HttpClientFactoryOptions>(httpClientName)
-        //            .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
-
-        //    // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-        //    //  builder.Services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
-        //    return builder;
-        //}
+        public static ConfigureUponRequestBuilder<HttpClientFactoryOptions, IServiceCollection> ConfigureHttpClientFactoryOptions(this IServiceCollection services)
+        {
+            // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
+            return services.ConfigureUponRequest<HttpClientFactoryOptions>();
+        }
 
         /// <summary>
         /// Configure this http client by configuring a simpler proxy options object of type <see cref="HttpClientOptions"/>
@@ -142,7 +95,6 @@ namespace Dazinator.Extensions.Http
             return builder;
         }
 
-
         /// <summary>
         /// Convenience method to ccnfigure a named options using the same name as this http client.
         /// </summary>
@@ -154,7 +106,6 @@ namespace Dazinator.Extensions.Http
             builder.Services.Configure<TOptions>(builder.Name, config);
             return builder;
         }
-
 
         private static void SetupHttpClientFactoryOptions(IServiceProvider serviceProvider, string httpClientName, HttpClientFactoryOptions httpClientFactoryOptions)
         {

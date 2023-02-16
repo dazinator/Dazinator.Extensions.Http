@@ -26,7 +26,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
               {
                   services.AddHttpClient();
                   // Add named options configuration AFTER other configuration
-                  services.ConfigureHttpClientFactoryOptions((sp, name, options) =>
+                  services.ConfigureHttpClientFactoryOptions().From((sp, name, options) =>
                   {
                       // We expect this to be invoked lazily with each IHttpClientFactory.Create(name) call - but only once per distinct name.
                       Interlocked.Increment(ref configureOptionsInvocationCount);
@@ -67,7 +67,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             {
                 services.AddHttpClient();
                 // Add named options configuration AFTER other configuration
-                services.ConfigureHttpClientFactoryOptions((sp, name, options) =>
+                services.ConfigureHttpClientFactoryOptions().From((sp, name, options) =>
                 {
                     options.HandlerLifetime = handlerLifetime;
 
@@ -129,7 +129,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                         };
                     });
                 })
-                .ConfigureHttpClientOptions((sp, name, options) =>
+                .ConfigureHttpClientOptions().From((sp, name, options) =>
                 {
                     if (name.StartsWith("foo-"))
                     {
@@ -154,7 +154,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                         options.Handlers.Add("status-handler");
                     }
                 })
-                .ConfigureUponRequest<StatusHandlerOptions>((sp, name, options) =>
+                .ConfigureUponRequest<StatusHandlerOptions>().From((sp, name, options) =>
                 {
                     if (name.StartsWith("foo-"))
                     {
@@ -180,8 +180,6 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         [Fact]
         public async Task Can_ConfigureHttpClientOptions_AndConfigureUsingDelegate_MultipleHandlerTypes()
         {
-            var invocationCount = 0;
-
             var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
             {
                 services.AddHttpClient();
@@ -205,7 +203,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                             return Task.FromResult(result);
                         }));
 
-                }).ConfigureHttpClientOptions((sp, name, options) =>
+                }).ConfigureHttpClientOptions().From((sp, name, options) =>
                 {
                     // load settings from some store using unique http client name (which can version)]
                     // "[app-code]-[system-name]-[type]-[purpose]-0283928923928392";
@@ -298,7 +296,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                              var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
                              return Task.FromResult(result);
                          }));
-                }).ConfigureHttpClientOptions((name) =>
+                }).ConfigureHttpClientOptions().From((name) =>
                 {
                     return config.GetSection(name);
                 });
@@ -323,7 +321,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
 
             var unconfiguredClient = sut.CreateClient("no-such-client-configured");
             Assert.NotNull(unconfiguredClient);
-            Assert.ThrowsAsync<InvalidOperationException>(async () => await unconfiguredClient.GetAsync($"/awdwad"));
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await unconfiguredClient.GetAsync($"/awdwad"));
 
         }
 
