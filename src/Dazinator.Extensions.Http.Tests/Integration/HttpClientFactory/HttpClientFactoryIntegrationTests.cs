@@ -104,7 +104,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingDelegate()
+        public async Task Can_ConfigureHttpClientOptions_UsingDelegate_SingleHandlerTypeVaryingHandlerOptions()
         {
             var invocationCount = 0;
 
@@ -127,20 +127,9 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                                 return Task.FromResult(result);
                             });
                         };
-                        services.ConfigureUponRequest<StatusHandlerOptions>((sp, name, options) =>
-                        {
-                            if (name.StartsWith("foo-"))
-                            {
-                                options.StatusCode = System.Net.HttpStatusCode.OK;
-                            }
-                            if (name.StartsWith("bar-"))
-                            {
-                                options.StatusCode = System.Net.HttpStatusCode.NotFound;
-                            }
-                        });
                     });
                 })
-                .AddHttpClientOptionsFactory((sp, name, options) =>
+                .ConfigureHttpClientOptions((sp, name, options) =>
                 {
                     if (name.StartsWith("foo-"))
                     {
@@ -164,6 +153,17 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                         // handler ends up configured specific for each http client.
                         options.Handlers.Add("status-handler");
                     }
+                })
+                .ConfigureUponRequest<StatusHandlerOptions>((sp, name, options) =>
+                {
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.OK;
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.NotFound;
+                    }
                 });
             });
 
@@ -178,7 +178,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         }
 
         [Fact]
-        public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingDelegate_MultipleDifferentHandlers()
+        public async Task Can_ConfigureHttpClientOptions_AndConfigureUsingDelegate_MultipleHandlerTypes()
         {
             var invocationCount = 0;
 
@@ -205,7 +205,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                             return Task.FromResult(result);
                         }));
 
-                }).AddHttpClientOptionsFactory((sp, name, options) =>
+                }).ConfigureHttpClientOptions((sp, name, options) =>
                 {
                     // load settings from some store using unique http client name (which can version)]
                     // "[app-code]-[system-name]-[type]-[purpose]-0283928923928392";
@@ -238,6 +238,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
             Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
         }
+
 
         [Fact]
         public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingIConfiguration()
@@ -297,7 +298,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                              var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
                              return Task.FromResult(result);
                          }));
-                }).AddHttpClientOptionsFactory((name) =>
+                }).ConfigureHttpClientOptions((name) =>
                 {
                     return config.GetSection(name);
                 });

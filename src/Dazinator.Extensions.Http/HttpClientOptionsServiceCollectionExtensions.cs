@@ -20,7 +20,7 @@ namespace Dazinator.Extensions.Http
         }
 
 
-        public static IServiceCollection AddHttpClientOptionsFactory(this IServiceCollection services,
+        public static IServiceCollection ConfigureHttpClientOptions(this IServiceCollection services,
             Action<IServiceProvider, string, HttpClientOptions> configure)
         {
             services.ConfigureUponRequest<HttpClientOptions>(configure);
@@ -29,7 +29,22 @@ namespace Dazinator.Extensions.Http
             return services;
         }
 
-        public static IServiceCollection AddHttpClientOptionsFactory(this IServiceCollection services,
+        ///// <summary>
+        ///// A Sugar method purely to aid readability.
+        ///// </summary>
+        ///// <param name="services"></param>
+        ///// <param name="configure"></param>
+        ///// <returns></returns>
+        //public static IServiceCollection Configure<TOptions>(this IServiceCollection services,
+        //   Action<IServiceProvider, string, TOptions> configure)
+        //    where TOptions: class
+        //{
+        //    services.ConfigureUponRequest<TOptions>(configure);           
+        //    return services;
+        //}
+
+
+        public static IServiceCollection ConfigureHttpClientOptions(this IServiceCollection services,
           Func<string, IConfiguration> getConfig)
         {
             services.ConfigureUponRequest<HttpClientOptions>((name) => getConfig(name));

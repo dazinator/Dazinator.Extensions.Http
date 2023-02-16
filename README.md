@@ -46,13 +46,13 @@ There are different usage patterns, starting simple then varying in sophisticati
 
 ### More advanced
 
-Rather than configuring the `HttpClientFactoryOptions` directly, you can configure httpclients from a "smarter" set of options provided by this library that will wrap and configure the underlying `HttpClientFactoryOptions`.
+Rather than configuring the `HttpClientFactoryOptions` directly, you can configure httpclients from a "simpler" set of options provided by this library that will wrap and configure the underlying `HttpClientFactoryOptions`.
 These options can be configured lazily upon request of the named client, either via a configure action delegate, or from an IConfiguration.
 
 
 ```cs
   services.AddHttpClient();
-  services.AddHttpClientOptionsFactory((sp, name, options) =>
+  services.ConfigureHttpClientOptions((sp, name, options) =>
   {
       // load settings from some store using unique http client name (which can version)
       if (name.StartsWith("foo-"))
@@ -81,7 +81,7 @@ Or use bind these options from `IConfiguration`
 
 ```cs
 
-services.AddHttpClientOptionsFactory((name) =>
+services.ConfigureHttpClientOptions((name) =>
             {
                 return config.GetSection(name);
             });
@@ -219,3 +219,71 @@ This allows us to control its behaviour for each named http client by ensuring w
 In the scenario above:-
 
 1. The handler I have implemented allows for different options based on the http client name. It's a useful pattern for me so I chose to demo it, it may not be necessary in your handlers.
+
+When using `ConfigureHttpClientOptions` you do not know the http client name in advance. In this scenario, you must also configure the handler's options in such a way that it can be configured at request time for whatever th http client name is that is requested at runtime. We do this using the `ConfigureUponRequest` extension method provided by `Dazinator.Extensions.Options` dependency:
+
+```cs
+
+ services.AddHttpClientHandlerRegistry((registry) =>
+                {
+                    registry.Register<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (services, r) =>
+                    {
+                        r.Factory = (sp, httpClientName) =>
+                        {
+                            var optionsMontior = sp.GetRequiredService<IOptionsMonitor<StatusHandlerOptions>>();
+                            return new DelegatingHandlerWithOptions<StatusHandlerOptions>(httpClientName, optionsMontior, (request, handlerOptions, cancelToken) =>
+                            {
+                                var result = new HttpResponseMessage(handlerOptions.StatusCode);
+                                return Task.FromResult(result);
+                            });
+                        };                     
+                    });
+                })
+                .ConfigureHttpClientOptions((sp, name, options) =>
+                {
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options (named after the http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options configured (named after each http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
+                })
+                .ConfigureUponRequest<StatusHandlerOptions>((sp, name, options) =>
+                {
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.OK;
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.StatusCode = System.Net.HttpStatusCode.NotFound;
+                    }
+                });
+            });
+
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
+
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
+
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+
+```
