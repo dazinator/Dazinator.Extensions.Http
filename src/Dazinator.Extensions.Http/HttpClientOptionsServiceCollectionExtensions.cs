@@ -61,12 +61,14 @@ namespace Dazinator.Extensions.Http
         {
             var httpClientName = builder.Name;
             var services = builder.Services;
-            services.Configure<HttpClientOptions>(httpClientName, configure);
-            services.AddOptions<HttpClientFactoryOptions>(httpClientName)
-                   .Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
+
+            builder.ConfigureOptions<HttpClientOptions>(configure);
+            builder.AddOptions<HttpClientFactoryOptions>((optionsBuilder) =>
+            {
+                optionsBuilder.Configure<IServiceProvider>((o, sp) => SetupHttpClientFactoryOptions(sp, httpClientName, o));
+            });
 
             return builder;
-            //  return SetupFromHttpClientOptions(builder);
         }
 
         /// <summary>
@@ -85,6 +87,47 @@ namespace Dazinator.Extensions.Http
             return builder;
             //  return SetupFromHttpClientOptions(builder);
         }
+
+
+        /// <summary>
+        /// Convenience method to ccnfigure a named options using the same name as this http client.
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static IHttpClientBuilder ConfigureOptions<TOptions>(this IHttpClientBuilder builder, Action<TOptions> configure)
+            where TOptions : class
+        {
+            builder.Services.Configure<TOptions>(builder.Name, configure);
+            return builder;
+        }
+
+        /// <summary>
+        /// Convenience method to ccnfigure a named options using the same name as the http client you are configuring with the <paramref name="builder"/>.
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static IHttpClientBuilder AddOptions<TOptions>(this IHttpClientBuilder builder, Action<OptionsBuilder<TOptions>> configure)
+            where TOptions : class
+        {
+            var services = builder.Services;
+            var optionsBuilder = services.AddOptions<TOptions>(builder.Name);
+            configure?.Invoke(optionsBuilder);
+            return builder;
+        }
+
+
+        /// <summary>
+        /// Convenience method to ccnfigure a named options using the same name as this http client.
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static IHttpClientBuilder ConfigureOptions<TOptions>(this IHttpClientBuilder builder, IConfiguration config)
+            where TOptions : class
+        {
+            builder.Services.Configure<TOptions>(builder.Name, config);
+            return builder;
+        }
+
 
         private static void SetupHttpClientFactoryOptions(IServiceProvider serviceProvider, string httpClientName, HttpClientFactoryOptions httpClientFactoryOptions)
         {
@@ -153,6 +196,7 @@ namespace Dazinator.Extensions.Http
         ///// <param name="builder"></param>
         ///// <param name="configure"></param>
         ///// <returns></returns>
+        ///// <<remarks>This is useful so when ncalling AddHttpClient() to configure a named http client, you can chain .WithBuilder() to make use of the builders httpclient Name property whilst confiugirnng its services.</remarks>
         //public static IHttpClientBuilder WithBuilder(this IHttpClientBuilder builder, Action<IHttpClientBuilder> configure)
         //{
         //    configure?.Invoke(builder);
