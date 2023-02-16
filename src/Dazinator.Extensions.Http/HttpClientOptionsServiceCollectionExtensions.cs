@@ -8,25 +8,37 @@ namespace Dazinator.Extensions.Http
 
     public static class HttpClientOptionsServiceCollectionExtensions
     {
-        public static IServiceCollection AddDynamicNamedHttpClients(this IServiceCollection services,
+
+        public static IServiceCollection AddHttpClientHandlerRegistry(this IServiceCollection services, Action<HandlerRegistryBuilder> registerHandlers)
+        {
+            services.AddHttpClient();
+            var registry = new HttpClientHandlerRegistry();
+            var builder = new HandlerRegistryBuilder(services, registry);
+            registerHandlers(builder);
+            services.AddSingleton(registry);
+            return services;
+        }
+
+
+        public static IServiceCollection AddHttpClientOptionsFactory(this IServiceCollection services,
             Action<IServiceProvider, string, HttpClientOptions> configure)
         {
             services.ConfigureUponRequest<HttpClientOptions>(configure);
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.
-            services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
+            services.ConfigureHttpClientFactoryOptions(SetupHttpClientFactoryOptions);
             return services;
         }
 
-        public static IServiceCollection AddDynamicNamedHttpClients(this IServiceCollection services,
+        public static IServiceCollection AddHttpClientOptionsFactory(this IServiceCollection services,
           Func<string, IConfiguration> getConfig)
         {
             services.ConfigureUponRequest<HttpClientOptions>((name) => getConfig(name));
-            services.ConfigureHttpClientFactory(SetupHttpClientFactoryOptions);
+            services.ConfigureHttpClientFactoryOptions(SetupHttpClientFactoryOptions);
             return services;
         }
 
 
-        public static IServiceCollection ConfigureHttpClientFactory(this IServiceCollection services,
+        public static IServiceCollection ConfigureHttpClientFactoryOptions(this IServiceCollection services,
            Action<IServiceProvider, string, HttpClientFactoryOptions> configure)
         {
             // Configures HttpClientFactoryOptions on demand when a distinct httpClientName is requested.

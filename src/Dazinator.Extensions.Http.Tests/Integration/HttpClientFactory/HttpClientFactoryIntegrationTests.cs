@@ -18,7 +18,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         [Theory]
         [InlineData("foo", "foo-v2", "bar", "bar-v2")] // each 
         [InlineData("foo", "foo", "foo", "foo", "foo")]
-        public void Can_ConfigureHttpClientFactory_LazilyForName(params string[] names)
+        public void Can_ConfigureHttpClientFactoryOptions(params string[] names)
         {
             var configureOptionsInvocationCount = 0;
             var httpClientActionsInvocationCount = 0;
@@ -26,7 +26,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
               {
                   services.AddHttpClient();
                   // Add named options configuration AFTER other configuration
-                  services.ConfigureHttpClientFactory((sp, name, options) =>
+                  services.ConfigureHttpClientFactoryOptions((sp, name, options) =>
                   {
                       // We expect this to be invoked lazily with each IHttpClientFactory.Create(name) call - but only once per distinct name.
                       Interlocked.Increment(ref configureOptionsInvocationCount);
@@ -58,7 +58,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Can_ConfigureHttpClientFactory_HttpMessageHandlerBuilderActions()
+        public async Task Can_ConfigureHttpClientFactoryOptions_HandlerLifetime()
         {
             var invocationCount = 0;
             var handlerLifetime = TimeSpan.FromSeconds(2);
@@ -67,7 +67,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             {
                 services.AddHttpClient();
                 // Add named options configuration AFTER other configuration
-                services.ConfigureHttpClientFactory((sp, name, options) =>
+                services.ConfigureHttpClientFactoryOptions((sp, name, options) =>
                 {
                     options.HandlerLifetime = handlerLifetime;
 
@@ -99,85 +99,12 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
             }
         }
 
-
         /// <summary>
         /// Verifies that we can configure the <see cref="HttpClientFactoryOptions"/> using our options API which allows http client to be defined in terms of <see cref="HttpClientOptions"/> plus handlers registered with a <see cref="HttpClientHandlerRegistry"/>.
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Can_ConfigureHttpClientFactory_FromHttpClientOptionsAndHandlerRegistry()
-        {
-            var invocationCount = 0;
-
-            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
-            {
-                services.AddHttpClient();
-                // Add named options configuration AFTER other configuration
-
-                // register some mock handlers in the handler registry.
-                var statusOkHandlerName = "statusOkHandler";
-                var statusNotFoundHandlerName = "statusNotFoundhandler";
-                var handlerRegistry = services.ConfigureHttpClients((registry) =>
-                {
-                    registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
-
-                         // var f = new DelegatingHandler();
-                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
-                         {
-                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
-                             return Task.FromResult(result);
-                         }))
-
-                     .RegisterHandler<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
-                          // var f = new DelegatingHandler();
-                          r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
-                          {
-                              var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
-                              return Task.FromResult(result);
-                          }))
-                     .AddDynamicNamedHttpClients((sp, name, options) =>
-                     {
-                         // load settings from some store using unique http client name (which can version)]
-                         // "[app-code]-[system-name]-[type]-[purpose]-0283928923928392";
-                         // "JNL-Integrity-Send-Cashflows-0283928923928392
-                         if (name.StartsWith("foo-"))
-                         {
-                             options.BaseAddress = $"http://{name}.localhost";
-                             options.EnableBypassInvalidCertificate = true;
-                             options.MaxResponseContentBufferSize = 2000;
-                             options.Timeout = TimeSpan.FromMinutes(2);
-                             options.Handlers.Add(statusOkHandlerName);
-                         }
-                         if (name.StartsWith("bar-"))
-                         {
-                             options.BaseAddress = $"http://{name}.localhost";
-                             options.EnableBypassInvalidCertificate = true;
-                             options.MaxResponseContentBufferSize = 2000;
-                             options.Timeout = TimeSpan.FromMinutes(2);
-                             options.Handlers.Add(statusNotFoundHandlerName);
-                         }
-                     });
-
-                });
-            });
-
-            var fooClient = sut.CreateClient("foo-v1");
-            var barClient = sut.CreateClient("bar-v1");
-
-            var fooResponse = await fooClient.GetAsync("/foo");
-            var barResponse = await barClient.GetAsync("/bar");
-
-            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
-            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
-        }
-
-
-        /// <summary>
-        /// Verifies that we can configure the <see cref="HttpClientFactoryOptions"/> using our options API which allows http client to be defined in terms of <see cref="HttpClientOptions"/> plus handlers registered with a <see cref="HttpClientHandlerRegistry"/>.
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task Can_ConfigureHandlersWithDifferentOptions()
+        public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingDelegate()
         {
             var invocationCount = 0;
 
@@ -187,9 +114,9 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // Add named options configuration AFTER other configuration              
 
                 // Rgister a handler, that uses named options to configure itself to behave differently per named http client.
-                services.ConfigureHttpClients((registry) =>
+                services.AddHttpClientHandlerRegistry((registry) =>
                 {
-                    registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (services, r) =>
+                    registry.Register<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (services, r) =>
                     {
                         r.Factory = (sp, httpClientName) =>
                         {
@@ -211,32 +138,32 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                                 options.StatusCode = System.Net.HttpStatusCode.NotFound;
                             }
                         });
-                    })
-                    .AddDynamicNamedHttpClients((sp, name, options) =>
-                     {
-                         if (name.StartsWith("foo-"))
-                         {
-                             options.BaseAddress = $"http://{name}.localhost";
-                             options.EnableBypassInvalidCertificate = true;
-                             options.MaxResponseContentBufferSize = 2000;
-                             options.Timeout = TimeSpan.FromMinutes(2);
-                             // Both clients have the same handler "status-handler" added.
-                             // But as the handler has different named options (named after the http client name) the same
-                             // handler ends up configured specific for each http client.
-                             options.Handlers.Add("status-handler");
-                         }
-                         if (name.StartsWith("bar-"))
-                         {
-                             options.BaseAddress = $"http://{name}.localhost";
-                             options.EnableBypassInvalidCertificate = true;
-                             options.MaxResponseContentBufferSize = 2000;
-                             options.Timeout = TimeSpan.FromMinutes(2);
-                             // Both clients have the same handler "status-handler" added.
-                             // But as the handler has different named options configured (named after each http client name) the same
-                             // handler ends up configured specific for each http client.
-                             options.Handlers.Add("status-handler");
-                         }
-                     });
+                    });
+                })
+                .AddHttpClientOptionsFactory((sp, name, options) =>
+                {
+                    if (name.StartsWith("foo-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options (named after the http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        // Both clients have the same handler "status-handler" added.
+                        // But as the handler has different named options configured (named after each http client name) the same
+                        // handler ends up configured specific for each http client.
+                        options.Handlers.Add("status-handler");
+                    }
                 });
             });
 
@@ -251,52 +178,54 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         }
 
         [Fact]
-        public async Task Can_Configure_Using_HttpClientBuilder()
+        public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingDelegate_MultipleDifferentHandlers()
         {
+            var invocationCount = 0;
+
             var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
             {
+                services.AddHttpClient();
+                // Add named options configuration AFTER other configuration
 
                 // register some mock handlers in the handler registry.
                 var statusOkHandlerName = "statusOkHandler";
                 var statusNotFoundHandlerName = "statusNotFoundhandler";
-                var handlerRegistry = services.ConfigureHttpClients((registry) =>
+                var handlerRegistry = services.AddHttpClientHandlerRegistry((registry) =>
                 {
-                    registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
-                        // var f = new DelegatingHandler();
+                    registry.Register<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
                         {
                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
                             return Task.FromResult(result);
                         }))
-                       .RegisterHandler<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
-                         // var f = new DelegatingHandler();
-                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
-                         {
-                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
-                             return Task.FromResult(result);
-                         }));
+                    .Register<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
+                        r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                        {
+                            var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
+                            return Task.FromResult(result);
+                        }));
 
-                    var services = registry.Services;
-
-                    services.AddHttpClient("foo-v1")
-                    .ConfigureOptions((options) =>
+                }).AddHttpClientOptionsFactory((sp, name, options) =>
+                {
+                    // load settings from some store using unique http client name (which can version)]
+                    // "[app-code]-[system-name]-[type]-[purpose]-0283928923928392";
+                    // "JNL-Integrity-Send-Cashflows-0283928923928392
+                    if (name.StartsWith("foo-"))
                     {
-                        options.BaseAddress = $"http://foo-v1.localhost";
+                        options.BaseAddress = $"http://{name}.localhost";
                         options.EnableBypassInvalidCertificate = true;
                         options.MaxResponseContentBufferSize = 2000;
                         options.Timeout = TimeSpan.FromMinutes(2);
                         options.Handlers.Add(statusOkHandlerName);
-                    });
-
-                    services.AddHttpClient("bar-v1")
-                       .ConfigureOptions((options) =>
-                       {
-                           options.BaseAddress = $"http://bar-v1.localhost";
-                           options.EnableBypassInvalidCertificate = true;
-                           options.MaxResponseContentBufferSize = 2000;
-                           options.Timeout = TimeSpan.FromMinutes(2);
-                           options.Handlers.Add(statusNotFoundHandlerName);
-                       });
+                    }
+                    if (name.StartsWith("bar-"))
+                    {
+                        options.BaseAddress = $"http://{name}.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add(statusNotFoundHandlerName);
+                    }
                 });
             });
 
@@ -311,7 +240,7 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         }
 
         [Fact]
-        public async Task Can_ConfigureHttpClient_FromIConfiguration()
+        public async Task Can_AddHttpClientOptionsFactory_AndConfigureUsingIConfiguration()
         {
 
             // arrange
@@ -352,16 +281,160 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
                 // register some mock handlers in the handler registry.
 
 
-                var handlerRegistry = services.ConfigureHttpClients((registry) =>
+                services.AddHttpClientHandlerRegistry((registry) =>
                 {
-                    registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+                    registry.Register<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
                         // var f = new DelegatingHandler();
                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
                         {
                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
                             return Task.FromResult(result);
                         }))
-                       .RegisterHandler<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
+                       .Register<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
+                         // var f = new DelegatingHandler();
+                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                         {
+                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
+                             return Task.FromResult(result);
+                         }));
+                }).AddHttpClientOptionsFactory((name) =>
+                {
+                    return config.GetSection(name);
+                });
+
+            });
+
+
+            foreach (var name in httpClientNames)
+            {
+                var httpClient = sut.CreateClient(name);
+                var response = await httpClient.GetAsync($"/{name}");
+
+                if (name == "foo-v1")
+                {
+                    Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+                }
+                else
+                {
+                    Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+                }
+            }
+
+            var unconfiguredClient = sut.CreateClient("no-such-client-configured");
+            Assert.NotNull(unconfiguredClient);
+            Assert.ThrowsAsync<InvalidOperationException>(async () => await unconfiguredClient.GetAsync($"/awdwad"));
+
+        }
+
+        [Fact]
+        public async Task Can_AddHttpClient_AndConfigureOptions_UsingConfigureDelegate()
+        {
+            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
+            {
+
+                // register some mock handlers in the handler registry.
+                var statusOkHandlerName = "statusOkHandler";
+                var statusNotFoundHandlerName = "statusNotFoundhandler";
+                var handlerRegistry = services.AddHttpClientHandlerRegistry((registry) =>
+                {
+                    registry.Register<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+                        // var f = new DelegatingHandler();
+                        r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                        {
+                            var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+                            return Task.FromResult(result);
+                        }))
+                       .Register<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
+                         // var f = new DelegatingHandler();
+                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                         {
+                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
+                             return Task.FromResult(result);
+                         }));
+                })
+                .AddHttpClient("foo-v1")
+                    .ConfigureOptions((options) =>
+                    {
+                        options.BaseAddress = $"http://foo-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add(statusOkHandlerName);
+                    })
+                .Services
+                .AddHttpClient("bar-v1")
+                    .ConfigureOptions((options) =>
+                     {
+                         options.BaseAddress = $"http://bar-v1.localhost";
+                         options.EnableBypassInvalidCertificate = true;
+                         options.MaxResponseContentBufferSize = 2000;
+                         options.Timeout = TimeSpan.FromMinutes(2);
+                         options.Handlers.Add(statusNotFoundHandlerName);
+                     });
+            });
+
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
+
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
+
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task Can_AddHttpClient_AndConfigureOptions_UsingIConfiguration()
+        {
+
+            // arrange
+            // set up an IConfiguration that configures a section for each named http client's `HttpClientOptions` and configure the first to use a different handler.
+            const string statusOkHandlerName = "statusOkHandler";
+            const string statusNotFoundHandlerName = "statusNotFoundhandler";
+
+            var configBuilder = new ConfigurationBuilder();
+
+            var httpClientNames = new List<string>() { "foo-v1", "bar-v1" };
+
+            var inMemoryConfigValues = new Dictionary<string, string>();
+            foreach (var name in httpClientNames)
+            {
+                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.BaseAddress)}", $"http://{name}.localhost");
+                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.EnableBypassInvalidCertificate)}", true.ToString());
+                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.MaxResponseContentBufferSize)}", "2000");
+                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Timeout)}", $"00:02:00");
+                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.UseCookies)}", true.ToString());
+
+                if (name == "foo-v1")
+                {
+                    inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Handlers)}:0", statusOkHandlerName);
+                }
+                else
+                {
+                    inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Handlers)}:0", statusNotFoundHandlerName);
+                }
+            }
+
+            configBuilder.AddInMemoryCollection(inMemoryConfigValues);
+            IConfiguration config = configBuilder.Build();
+
+
+            var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
+            {
+
+                // register some mock handlers in the handler registry.
+
+
+                var handlerRegistry = services.AddHttpClientHandlerRegistry((registry) =>
+                {
+                    registry.Register<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
+                        // var f = new DelegatingHandler();
+                        r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
+                        {
+                            var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+                            return Task.FromResult(result);
+                        }))
+                       .Register<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
                          // var f = new DelegatingHandler();
                          r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
                          {
@@ -399,96 +472,60 @@ namespace Dazinator.Extensions.Http.Tests.Integration.HttpClientFactory
         }
 
         [Fact]
-        public async Task Can_AddDynamicNamedHttpClients_ConfiguredFromIConfiguration()
+        public async Task Can_AddHttpClient_AndConfigureHandlerOptions()
         {
-
-            // arrange
-            // set up an IConfiguration that configures a section for each named http client's `HttpClientOptions` and configure the first to use a different handler.
-            const string statusOkHandlerName = "statusOkHandler";
-            const string statusNotFoundHandlerName = "statusNotFoundhandler";
-
-            var configBuilder = new ConfigurationBuilder();
-
-            var httpClientNames = new List<string>() { "foo-v1", "bar-v1" };
-
-            var inMemoryConfigValues = new Dictionary<string, string>();
-            foreach (var name in httpClientNames)
-            {
-                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.BaseAddress)}", $"http://{name}.localhost");
-                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.EnableBypassInvalidCertificate)}", true.ToString());
-                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.MaxResponseContentBufferSize)}", "2000");
-                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Timeout)}", $"00:02:00");
-                inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.UseCookies)}", true.ToString());
-
-                if (name == "foo-v1")
-                {
-                    inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Handlers)}:0", statusOkHandlerName);
-                }
-                else
-                {
-                    inMemoryConfigValues.TryAdd($"{name}:{nameof(HttpClientOptions.Handlers)}:0", statusNotFoundHandlerName);
-                }
-            }
-
-            configBuilder.AddInMemoryCollection(inMemoryConfigValues);
-            IConfiguration config = configBuilder.Build();
-
-
             var sut = TestHelper.CreateTestSubject<IHttpClientFactory>(out var testServices, (services) =>
             {
 
                 // register some mock handlers in the handler registry.
-
-
-                var handlerRegistry = services.ConfigureHttpClients((registry) =>
+                services.AddHttpClientHandlerRegistry((registry) =>
                 {
-                    registry.RegisterHandler<FuncDelegatingHandler>(statusOkHandlerName, (r) =>
-                        // var f = new DelegatingHandler();
-                        r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
-                        {
-                            var result = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
-                            return Task.FromResult(result);
-                        }))
-                       .RegisterHandler<FuncDelegatingHandler>(statusNotFoundHandlerName, (r) =>
-                         // var f = new DelegatingHandler();
-                         r.Factory = (sp, httpClientName) => new FuncDelegatingHandler((request, cancelToken) =>
-                         {
-                             var result = new HttpResponseMessage(System.Net.HttpStatusCode.NotFound);
-                             return Task.FromResult(result);
-                         }));
-
-                    registry.AddDynamicNamedHttpClients((name) =>
+                    registry.Register<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
                     {
-                        return config.GetSection(name);
+                        r.Factory = (sp, httpClientName) =>
+                        {
+                            var optionsMontior = sp.GetRequiredService<IOptionsMonitor<StatusHandlerOptions>>();
+                            return new DelegatingHandlerWithOptions<StatusHandlerOptions>(httpClientName, optionsMontior, (request, handlerOptions, cancelToken) =>
+                            {
+                                var result = new HttpResponseMessage(handlerOptions.StatusCode);
+                                return Task.FromResult(result);
+                            });
+                        };
                     });
-
-                });
+                })
+                .AddHttpClient("foo-v1")
+                    .ConfigureOptions((options) =>
+                    {
+                        options.BaseAddress = $"http://foo-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add("status-handler");
+                    })
+                    .ConfigureOptions<StatusHandlerOptions>((a) => a.StatusCode = System.Net.HttpStatusCode.OK)
+                .Services
+                .AddHttpClient("bar-v1")
+                    .ConfigureOptions((options) =>
+                    {
+                        options.BaseAddress = $"http://bar-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add("status-handler");
+                    }).ConfigureOptions<StatusHandlerOptions>((a) => a.StatusCode = System.Net.HttpStatusCode.NotFound);
             });
 
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
 
-            foreach (var name in httpClientNames)
-            {
-                var httpClient = sut.CreateClient(name);
-                var response = await httpClient.GetAsync($"/{name}");
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
 
-                if (name == "foo-v1")
-                {
-                    Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-                }
-                else
-                {
-                    Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
-                }
-            }
-
-            var unconfiguredClient = sut.CreateClient("no-such-client-configured");
-            Assert.NotNull(unconfiguredClient);
-            Assert.ThrowsAsync<InvalidOperationException>(async () => await unconfiguredClient.GetAsync($"/awdwad"));
-
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
         }
 
     }
-
 
 
     public class StatusHandlerOptions

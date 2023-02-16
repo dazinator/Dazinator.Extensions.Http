@@ -21,7 +21,7 @@ There are different usage patterns, starting simple then varying in sophisticati
 ```cs
    services.AddHttpClient();
   
-   services.ConfigureHttpClientFactory((sp, httpClientName, options) =>
+   services.ConfigureHttpClientFactoryOptions((sp, httpClientName, options) =>
    {
        // configure this named http client however you see fit
        options.HttpClientActions.Add(a =>
@@ -46,14 +46,13 @@ There are different usage patterns, starting simple then varying in sophisticati
 
 ### More advanced
 
-Rather than configuring the `HttpClientFactoryOptions` directly, you can configure httpclients from a "smarter" set of options provided by this library.
-These options cnn be configured lazily for each named client, either via a configure action delegate, or from an IConfiguration.
-By configuring these options, they will then be used to configure `HttpClientFactoryOptions` accordingly behind the scenes similar to above.
+Rather than configuring the `HttpClientFactoryOptions` directly, you can configure httpclients from a "smarter" set of options provided by this library that will wrap and configure the underlying `HttpClientFactoryOptions`.
+These options can be configured lazily upon request of the named client, either via a configure action delegate, or from an IConfiguration.
 
 
 ```cs
   services.AddHttpClient();
-  services.AddDynamicNamedHttpClients((sp, name, options) =>
+  services.AddHttpClientOptionsFactory((sp, name, options) =>
   {
       // load settings from some store using unique http client name (which can version)
       if (name.StartsWith("foo-"))
@@ -67,6 +66,7 @@ By configuring these options, they will then be used to configure `HttpClientFac
       }
       if (name.StartsWith("bar-"))
       {
+          options.UseCookies = false;
           options.BaseAddress = $"http://{name}.localhost";
           options.EnableBypassInvalidCertificate = true;
           options.MaxResponseContentBufferSize = 2000;
@@ -77,18 +77,55 @@ By configuring these options, they will then be used to configure `HttpClientFac
 
 ```
 
-Note: You are able to fulfill common requirements. For example - you can `EnableBypassInvalidCertificate` if your client is talking to a server with an invalid SSL cert. Behind the scenes this is more work to do if configuring the `HttpClientFactoryOptions` directly so it relieves you from this.
+Or use bind these options from `IConfiguration`
+
+```cs
+
+services.AddHttpClientOptionsFactory((name) =>
+            {
+                return config.GetSection(name);
+            });
+
+```
+
+Note: If you know your http client names at the point of registration you can also use the normal AddHttpClient() style:
+
+```cs
+   services.AddHttpClient("foo-v1")
+                    .ConfigureOptions((options) =>
+                    {
+                        options.BaseAddress = $"http://foo-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add("status-handler");
+                    });                  
+
+```
+
+Or bind from config
+
+```
+
+   services.AddHttpClient("foo-v1")                   
+             .ConfigureOptions(GetConfiguration().GetSection("foo-v1"));
+
+```
 
 
-## Super advanced - configuring everything with ConfigureHttpClients.
+The simpler options object is easier to configure that manipulating the HttpClientFactoryOptions directly, the heavy lifting is done for you.
 
-A more powerful configuration options is available. 
-This allows you to also define custom http handlers, and configure them per http client.
+## Aven more advanced - using the Handler registry to map reusable handlers.
+
+A powerful feature for being able to map different handlers to different clients is available. 
+Each handler can be configured differently per named http client.
+
 The following is a walkthrough of creating a custom handler, and usig it with a couple of different http clients, and confiugring it with different options for each.
 
 1. Create the handler. 
 Here is an example generic handler that simply invokes invokes whatever Func you supply in the constructor. 
-It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>` so it can have its own options that vary from http client name to http client name.
+It also gets passed in the http client name, and takes an `IOptionsMontitor<TOptions>`. By injecting these two services we can have the handler load its options for the specific named http client, or fall back to a default set of options.
+This allows us to control its behaviour for each named http client by ensuring we configure its named options for that http client name.
 
 
 ```cs
@@ -126,17 +163,14 @@ It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>`
 
 2. Now you can do the following as shown in the example below:
 
-- 1) Use the `ConfigureHttpClients` method to configure your http clients and their handlers.
-- 2) Register the handler with the "handler registry" with a particular name, and factory method. The name is used later so you can associate this handler with an http client. The factory method is able to construct the handler and has access to the http client name so can load whatever configuration options it needs.
-- 3) Configure the http clients. We add the handler name to the "Handlers" list. 
-- 4) As our handler's factory method loads it's named options based on the httpclient name, we have to make sure we configure those named options.
+- 1) Use the `AddHttpClientHandlerRegistry` method to register your handler in the registry with a specific name. .
+- 2) AddHttpClient()'s and configure their options to use the handler, also configure the handler's options for that named http client.
 
-```cs
-       // 1).
-       services.ConfigureHttpClients((registry) =>
+```cs 
+           // 1.)
+           services.AddHttpClientHandlerRegistry((registry) =>
                 {
-                    // 2).
-                    registry.RegisterHandler<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
+                    registry.Register<DelegatingHandlerWithOptions<StatusHandlerOptions>>("status-handler", (r) =>
                     {
                         r.Factory = (sp, httpClientName) =>
                         {
@@ -146,83 +180,42 @@ It also gets passed in the http client name, and an `IOptionsMontitor<TOptions>`
                                 var result = new HttpResponseMessage(handlerOptions.StatusCode);
                                 return Task.FromResult(result);
                             });
-                        };
-                        // 4).
-                        r.Services.Configure<StatusHandlerOptions>((sp, name, options) =>
-                        {
-                            if (name.StartsWith("foo-"))
-                            {
-                                options.StatusCode = System.Net.HttpStatusCode.OK;
-                            }
-                            if (name.StartsWith("bar-"))
-                            {
-                                options.StatusCode = System.Net.HttpStatusCode.NotFound;
-                            }
-                        });
+                        };                       
                     });
-
-                    // 3). configure two named http clients, to use the above status handler.
-                    registry.AddDynamicNamedHttpClients((sp, name, options) =>
+                }) // 2)
+                .AddHttpClient("foo-v1")
+                    .ConfigureOptions((options) =>
                     {
+                        options.BaseAddress = $"http://foo-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add("status-handler");
+                    })
+                    .ConfigureOptions<StatusHandlerOptions>((a) => a.StatusCode = System.Net.HttpStatusCode.OK)
+                .Services
+                .AddHttpClient("bar-v1")
+                    .ConfigureOptions((options) =>
+                    {
+                        options.BaseAddress = $"http://bar-v1.localhost";
+                        options.EnableBypassInvalidCertificate = true;
+                        options.MaxResponseContentBufferSize = 2000;
+                        options.Timeout = TimeSpan.FromMinutes(2);
+                        options.Handlers.Add("status-handler");
+                    }).ConfigureOptions<StatusHandlerOptions>((a) => a.StatusCode = System.Net.HttpStatusCode.NotFound);
+            });
 
-                        if (name.StartsWith("foo-"))
-                        {
-                            options.BaseAddress = $"http://{name}.localhost";
-                            options.EnableBypassInvalidCertificate = true;
-                            options.MaxResponseContentBufferSize = 2000;
-                            options.Timeout = TimeSpan.FromMinutes(2);
-                            // Both clients have the same handler "status-handler" added.
-                            // But as the handler has different named options (named after the http client name) the same
-                            // handler ends up configured specific for each http client.
-                            options.Handlers.Add("status-handler");
-                        }
-                        if (name.StartsWith("bar-"))
-                        {
-                            options.BaseAddress = $"http://{name}.localhost";
-                            options.EnableBypassInvalidCertificate = true;
-                            options.MaxResponseContentBufferSize = 2000;
-                            options.Timeout = TimeSpan.FromMinutes(2);
-                            // Both clients have the same handler "status-handler" added.
-                            // But as the handler has different named options configured (named after each http client name) the same
-                            // handler ends up configured specific for each http client.
-                            options.Handlers.Add("status-handler");
-                        }
-                    });
-                });     
+            var fooClient = sut.CreateClient("foo-v1");
+            var barClient = sut.CreateClient("bar-v1");
 
- using var fooClient = sut.CreateClient("foo-v1");
- using var barClient = sut.CreateClient("bar-v1");
+            var fooResponse = await fooClient.GetAsync("/foo");
+            var barResponse = await barClient.GetAsync("/bar");
 
- var fooResponse = await fooClient.GetAsync("/foo");
- var barResponse = await barClient.GetAsync("/bar");
-
- Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
- Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.OK, fooResponse.StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, barResponse.StatusCode);
 
 ```
 
 In the scenario above:-
 
-1. The handler I have implemented allows for different options based on the http client name. You may or may not need this - it's a useful pattern for me so I chose to demo it.
-
-### Configuring named httpclients using SetupFromHttpClientOptions
-
-Suppose you are adding named http clients and the names are known at development time.
-For example, you might have tests and things that register specific named clients etc.
-You still want configure them using the more powerful `HttpClientOptions` approach specified here - i.e where you can map handlers for the client etc etc.
-
-```cs             
-
-               services.AddHttpClient("foo-v1")
-                        .ConfigureOptions((options) =>
-                        {
-                            options.BaseAddress = $"http://foo-v1.localhost";
-                            options.EnableBypassInvalidCertificate = true;
-                            options.MaxResponseContentBufferSize = 2000;
-                            options.Timeout = TimeSpan.FromMinutes(2);
-                            options.Handlers.Add(statusOkHandlerName);
-                        });
-
-                services.AddHttpClient("bar-v1")
-                        .ConfigureOptions(Configuration); // can also bind from IConfiguration
-```
+1. The handler I have implemented allows for different options based on the http client name. It's a useful pattern for me so I chose to demo it, it may not be necessary in your handlers.
